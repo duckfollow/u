@@ -1,6 +1,6 @@
 {
   "name": "u",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "scripts": {
@@ -26,5 +26,13 @@
   "engines": {
     "node": ">=24"
   },
-  "license": "MIT"
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/duckfollow/u.git"
+  },
+  "homepage": "https://github.com/duckfollow/u#readme",
+  "bugs": {
+    "url": "https://github.com/duckfollow/u/issues"
+  }
 }

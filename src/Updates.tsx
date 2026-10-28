@@ -1,3 +1,4 @@
+import { updateApi as api, type Release } from "./update-client";
 import { useEffect, useState } from "react";
 import {
   Download,
@@ -8,18 +9,6 @@ import {
   ArrowUpRight,
   Info,
 } from "lucide-react";
-type Release = {
-  currentVersion: string;
-  repository: string | null;
-  state?: string;
-  ready?: boolean;
-  reason?: string;
-  latestVersion?: string;
-  tag?: string;
-  notes?: string;
-  releaseUrl?: string;
-  checkedAt?: string;
-};
 type Job = {
   running: boolean;
   phase: string;
@@ -27,27 +16,23 @@ type Job = {
   restartRequired?: boolean;
   version?: string;
 };
-async function api(path: string, data?: unknown) {
-  const { token } = await fetch("/api/session").then((r) => r.json());
-  const result = await fetch("/api/updates/" + path, {
-    method: path === "status" ? "GET" : "POST",
-    headers: { "X-U-Token": token, "Content-Type": "application/json" },
-    ...(data ? { body: JSON.stringify(data) } : {}),
-  });
-  const body = await result.json();
-  if (!result.ok) throw Error(body.error || "Update request failed");
-  return body;
-}
 export default function Updates({
   onBusy,
+  initialRelease,
+  onChecked,
 }: {
   onBusy: (busy: boolean) => void;
+  initialRelease: Release | null;
+  onChecked: (release: Release) => void;
 }) {
-  const [release, setRelease] = useState<Release | null>(null),
+  const [release, setRelease] = useState<Release | null>(initialRelease),
     [job, setJob] = useState<Job>({ running: false, phase: "idle" }),
     [repo, setRepo] = useState(""),
     [working, setWorking] = useState(false),
     [error, setError] = useState("");
+  useEffect(() => {
+    if (initialRelease) setRelease(initialRelease);
+  }, [initialRelease]);
   useEffect(() => {
     let alive = true;
     async function poll() {
@@ -77,7 +62,9 @@ export default function Updates({
     setWorking(true);
     setError("");
     try {
-      setRelease(await api("check"));
+      const checked = await api("check");
+      setRelease(checked);
+      onChecked(checked);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -96,7 +83,9 @@ export default function Updates({
         state: undefined,
         reason: undefined,
       }));
-      setRelease(await api("check"));
+      const checked = await api("check");
+      setRelease(checked);
+      onChecked(checked);
     } catch (e) {
       setError((e as Error).message);
     } finally {
@@ -210,8 +199,8 @@ export default function Updates({
               <h3>Release source</h3>
             </div>
             <p>
-              Use the GitHub repository that owns this project. Releases are
-              checked only when you ask.
+              Use the GitHub repository that owns this project. u checks at
+              startup; you can also check manually.
             </p>
             <label className="field-label" htmlFor="update-repo">
               GITHUB REPOSITORY

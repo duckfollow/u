@@ -1,7 +1,8 @@
+import { updateApi, type Release } from "./update-client";
 import Updates from "./Updates";
 import { FlowRunner, type Progress, type LoopOutput } from "./runner";
 import Dropdown from "./Dropdown";
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import {
   ArrowUpRight,
   ArrowDown,
@@ -53,6 +54,43 @@ function load() {
   return seed();
 }
 export default function App() {
+  const [updateInfo, setUpdateInfo] = useState<Release | null>(null);
+  const [appVersion, setAppVersion] = useState("");
+  useEffect(() => {
+    let active = true;
+    async function startup() {
+      try {
+        const status = await updateApi("status");
+        if (!active) return;
+        setAppVersion(status.currentVersion);
+        let cached: Release | null = null;
+        try {
+          cached = JSON.parse(
+            localStorage.getItem("u-release-check") || "null",
+          );
+        } catch {}
+        const fresh =
+          cached &&
+          cached.currentVersion === status.currentVersion &&
+          cached.repository === status.repository &&
+          cached.checkedAt &&
+          Date.now() - Date.parse(cached.checkedAt) < 15 * 60 * 1000;
+        const result = fresh ? cached : await updateApi("check");
+        if (active) {
+          setUpdateInfo(result);
+          try {
+            localStorage.setItem("u-release-check", JSON.stringify(result));
+          } catch {}
+        }
+      } catch {
+        /* Manual update checks show connection errors in Updates. */
+      }
+    }
+    void startup();
+    return () => {
+      active = false;
+    };
+  }, []);
   const [w, setW] = useState<Workspace>(load),
     [view, setView] = useState("flows"),
     [flowId, setFlowId] = useState(w.flows[0]?.id),
@@ -558,7 +596,7 @@ export default function App() {
             <strong>u</strong>
             <small>API STUDIO</small>
           </div>
-          <span className="alpha">v0.1</span>
+          <span className="alpha">{appVersion ? `v${appVersion}` : "…"}</span>
         </div>
         <div className="workspace">
           <span className="workspace-icon">S</span>
@@ -596,6 +634,15 @@ export default function App() {
             >
               <n.icon size={17} />
               <span className="nav-label">{n.label}</span>
+              {n.id === "updates" && updateInfo?.state === "available" && (
+                <span
+                  className="update-nav-badge"
+                  title={`Version ${updateInfo.latestVersion} available`}
+                  aria-label={`Version ${updateInfo.latestVersion} available`}
+                >
+                  New
+                </span>
+              )}
               {n.id === "flows" && (
                 <span className="count">{w.flows.length}</span>
               )}
@@ -1511,7 +1558,13 @@ export default function App() {
             </div>
           </>
         )}
-        {view === "updates" && <Updates onBusy={setBusy} />}
+        {view === "updates" && (
+          <Updates
+            onBusy={setBusy}
+            initialRelease={updateInfo}
+            onChecked={setUpdateInfo}
+          />
+        )}
         <footer>
           <span>
             <span className="local-dot" /> Local connection

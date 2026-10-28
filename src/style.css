@@ -2356,3 +2356,30 @@ kbd {
     align-items: flex-start;
   }
 }
+.update-nav-badge {
+  margin-left: auto;
+  color: #d7c7ff;
+  background: #52416f;
+  border: 1px solid #675286;
+  font-size: 8px;
+  line-height: 1;
+  padding: 4px 5px;
+  border-radius: 5px;
+}
+@media (max-width: 720px) {
+  nav button {
+    position: relative;
+  }
+  .update-nav-badge {
+    position: absolute;
+    right: 7px;
+    top: 5px;
+    font-size: 0;
+    width: 6px;
+    height: 6px;
+    padding: 0;
+    border: 0;
+    background: #c2a3f4;
+    border-radius: 50%;
+  }
+}
