@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.1.2 — Unreleased
+## 0.1.2 — 2026-10-28
 
 - Add a Tauri/Rust desktop app and macOS DMG build based on Dum-E's project structure.
 - Send HTTP natively with cancellation and bounded response sizes; include offline demo endpoints.
