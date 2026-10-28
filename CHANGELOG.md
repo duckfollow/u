@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- Delete saved requests from the Collections sidebar with a confirmation dialog and an empty-state action.
+
+- Add Light, Dark, and System appearance modes with a saved per-device preference, live system appearance changes, and matching desktop window chrome.
+
 ## 0.1.2 — 2026-10-28
 
 - Add a Tauri/Rust desktop app and macOS DMG build based on Dum-E's project structure.

@@ -6,7 +6,16 @@ import {
   type KeyboardEvent,
 } from "react";
 import { createPortal } from "react-dom";
-import { Check, ChevronDown, Globe, Layers, Workflow } from "lucide-react";
+import {
+  Check,
+  ChevronDown,
+  Globe,
+  Layers,
+  Workflow,
+  Sun,
+  Moon,
+  Monitor,
+} from "lucide-react";
 
 type Option = { value: string; label: string; description?: string };
 type Props = {
@@ -15,7 +24,7 @@ type Props = {
   options: Option[];
   onChange: (value: string) => void;
   disabled?: boolean;
-  variant?: "environment" | "method" | "step" | "standard";
+  variant?: "environment" | "method" | "step" | "standard" | "theme";
   id?: string;
 };
 export default function Dropdown({
@@ -173,7 +182,17 @@ export default function Dropdown({
     }
   }
   const Icon =
-    variant === "environment" ? Globe : variant === "step" ? Workflow : Layers;
+    variant === "theme"
+      ? value === "light"
+        ? Sun
+        : value === "dark"
+          ? Moon
+          : Monitor
+      : variant === "environment"
+        ? Globe
+        : variant === "step"
+          ? Workflow
+          : Layers;
   return (
     <div className={`dropdown dropdown-${variant}`}>
       <button
@@ -247,6 +266,14 @@ export default function Dropdown({
                       option.label
                     ) : variant === "step" ? (
                       String(index + 1).padStart(2, "0")
+                    ) : variant === "theme" ? (
+                      option.value === "light" ? (
+                        <Sun size={15} />
+                      ) : option.value === "dark" ? (
+                        <Moon size={15} />
+                      ) : (
+                        <Monitor size={15} />
+                      )
                     ) : (
                       <Icon size={15} />
                     )}

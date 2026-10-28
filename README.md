@@ -114,3 +114,11 @@ The DMG is generated under `src-tauri/target/release/bundle/dmg/`. Development u
 Desktop workspaces persist in the webview for the app identifier `com.duckfollow.u`, separately from the browser version. GitHub release checks work in both versions. Desktop updates open the official release page for downloading a DMG and replacing the app, matching Dum-E's approach; the source-checkout Git updater applies only to the web version.
 
 The generated app is ad-hoc signed and bundle integrity is verified after the build. Developer ID signing and Apple notarization are required for normal public distribution without Gatekeeper prompts; they are not provided by this local build.
+
+## Appearance
+
+Use **Theme** above Updates in the sidebar to choose **Light**, **Dark**, or **System**. System follows changes to the device appearance automatically. The preference persists on this device, independently of workspace import/export, and is applied before the interface renders. Desktop builds also update the native window appearance.
+
+### Delete saved requests
+
+In Collections, use the trash icon at the right of a saved request in the sidebar. Confirm the request name in the dialog to delete it, or choose Cancel / Escape to keep it. Deletion is permanent and has no Undo. Copies used in flows and request history remain unchanged. On narrow screens, use the trash icon beside the request selector.

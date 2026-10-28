@@ -1,3 +1,5 @@
+import ConfirmRequestDelete from "./ConfirmRequestDelete";
+import ThemeControl from "./ThemeControl";
 import { updateApi, type Release } from "./update-client";
 import Updates from "./Updates";
 import { FlowRunner, type Progress, type LoopOutput } from "./runner";
@@ -109,6 +111,7 @@ export default function App() {
     [iteration, setIteration] = useState("all"),
     [query, setQuery] = useState(""),
     [notice, setNotice] = useState(""),
+    [pendingDelete, setPendingDelete] = useState<string | null>(null),
     [storageError, setStorageError] = useState(""),
     [pane, setPane] = useState<"canvas" | "details">("canvas"),
     [inspectorTab, setInspectorTab] = useState<"configure" | "output">(
@@ -122,7 +125,8 @@ export default function App() {
     step = allSteps.find((s) => s.id === stepId),
     parent = flow?.steps.find((s) => s.children?.some((c) => c.id === stepId)),
     siblings = parent?.children ?? flow?.steps ?? [],
-    spec = w.requests.find((r) => r.id === reqId);
+    spec = w.requests.find((r) => r.id === reqId),
+    requestToDelete = w.requests.find((r) => r.id === pendingDelete);
   function persist(value: Workspace) {
     setW(value);
     try {
@@ -457,6 +461,18 @@ export default function App() {
       </React.Fragment>
     );
   }
+  function deleteRequest() {
+    if (!requestToDelete || busy) return;
+    const index = w.requests.findIndex((r) => r.id === requestToDelete.id),
+      remaining = w.requests.filter((r) => r.id !== requestToDelete.id);
+    persist({ ...w, requests: remaining });
+    if (reqId === requestToDelete.id) {
+      setReqId(remaining[Math.min(index, remaining.length - 1)]?.id);
+      setResponse(null);
+    }
+    setPendingDelete(null);
+    setError("");
+  }
   function createItem() {
     if (view === "requests") {
       const r = request();
@@ -490,6 +506,7 @@ export default function App() {
       const value = JSON.parse(await f.text());
       if (!validateWorkspace(value)) throw Error("Invalid u workspace");
       persist(value);
+      setPendingDelete(null);
       setFlowId(value.flows[0]?.id);
       setStepId(value.flows[0]?.steps[0]?.id);
       setReqId(value.requests[0]?.id);
@@ -587,6 +604,13 @@ export default function App() {
   }
   return (
     <div className="app">
+      {requestToDelete && (
+        <ConfirmRequestDelete
+          name={requestToDelete.name}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={deleteRequest}
+        />
+      )}
       <aside className="sidebar">
         <div className="brand">
           <div className="logo">
@@ -651,18 +675,33 @@ export default function App() {
                   r.name.toLowerCase().includes(query.toLowerCase()),
                 )
                 .map((r) => (
-                  <button
-                    disabled={busy}
-                    className={reqId === r.id ? "chosen" : ""}
+                  <div
+                    className={`request-sidebar-row ${reqId === r.id ? "chosen" : ""}`}
                     key={r.id}
-                    onClick={() => {
-                      setReqId(r.id);
-                      setResponse(null);
-                    }}
                   >
-                    <span className="method">{r.method}</span>
-                    {r.name}
-                  </button>
+                    <button
+                      className="request-select"
+                      disabled={busy}
+                      onClick={() => {
+                        setReqId(r.id);
+                        setResponse(null);
+                      }}
+                    >
+                      <span className="method">{r.method}</span>
+                      <span className="request-sidebar-name">
+                        {r.name || "Untitled request"}
+                      </span>
+                    </button>
+                    <button
+                      className="request-sidebar-delete"
+                      disabled={busy}
+                      title={`Delete ${r.name || "Untitled request"}`}
+                      aria-label={`Delete ${r.name || "Untitled request"}`}
+                      onClick={() => setPendingDelete(r.id)}
+                    >
+                      <Trash2 size={13} />
+                    </button>
+                  </div>
                 ))
             : w.flows
                 .filter((f) =>
@@ -719,6 +758,7 @@ export default function App() {
           />
         </div>
         <div className="sidebar-update-footer">
+          <ThemeControl />
           <button
             className={`sidebar-update-button ${view === "updates" ? "active" : ""}`}
             aria-label="Updates"
@@ -809,6 +849,16 @@ export default function App() {
               <Plus size={14} />
               New {view === "flows" ? "flow" : "request"}
             </button>
+            {view === "requests" && spec && (
+              <button
+                disabled={busy}
+                title="Delete selected request"
+                aria-label="Delete selected request"
+                onClick={() => setPendingDelete(spec.id)}
+              >
+                <Trash2 size={14} />
+              </button>
+            )}
           </div>
         )}
         {error && (
@@ -1449,13 +1499,15 @@ export default function App() {
             </div>
             {spec ? (
               <div className="request-page">
-                <input
-                  className="title-input"
-                  aria-label="Request name"
-                  disabled={busy}
-                  value={spec.name}
-                  onChange={(e) => patchRequest({ name: e.target.value })}
-                />
+                <div className="request-heading">
+                  <input
+                    className="title-input"
+                    aria-label="Request name"
+                    disabled={busy}
+                    value={spec.name}
+                    onChange={(e) => patchRequest({ name: e.target.value })}
+                  />
+                </div>
                 {editor()}
                 {busy && (
                   <button onClick={() => abort.current?.abort()}>
@@ -1491,7 +1543,15 @@ export default function App() {
                 )}
               </div>
             ) : (
-              <div className="empty">Create a request with the + button.</div>
+              <div className="empty request-empty">
+                <Send size={30} />
+                <h3>No saved requests</h3>
+                <p>Create a request to start testing an API.</p>
+                <button className="primary" onClick={createItem}>
+                  <Plus size={14} />
+                  New request
+                </button>
+              </div>
             )}
           </>
         )}
