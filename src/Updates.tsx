@@ -1,3 +1,4 @@
+import { isDesktop, openRelease } from "./native";
 import { updateApi as api, type Release } from "./update-client";
 import { useEffect, useState } from "react";
 import {
@@ -43,7 +44,11 @@ export default function Updates({
         onBusy(status.running);
         setRelease((current) =>
           current
-            ? { ...current, currentVersion: status.currentVersion }
+            ? {
+                ...current,
+                runtime: status.runtime,
+                currentVersion: status.currentVersion,
+              }
             : status,
         );
         setRepo((current) => current || status.repository || "");
@@ -208,7 +213,7 @@ export default function Updates({
             <div className="update-source">
               <input
                 id="update-repo"
-                disabled={disabled}
+                disabled={disabled || release?.runtime === "desktop"}
                 value={repo}
                 onChange={(e) => setRepo(e.target.value)}
                 placeholder="owner/repository"
@@ -216,7 +221,9 @@ export default function Updates({
                 spellCheck={false}
               />
               <button
-                disabled={disabled || !repo.trim()}
+                disabled={
+                  disabled || !repo.trim() || release?.runtime === "desktop"
+                }
                 onClick={() => void save()}
               >
                 Save & check
@@ -224,8 +231,9 @@ export default function Updates({
               </button>
             </div>
             <small>
-              Installation requires a clean project checkout connected to this
-              same repository.
+              {release?.runtime === "desktop"
+                ? "The desktop app checks official duckfollow/u releases."
+                : "Installation requires a clean project checkout connected to this same repository."}
             </small>
           </section>
           <section className="update-card">
@@ -234,8 +242,9 @@ export default function Updates({
               <h3>Install an update</h3>
             </div>
             <p>
-              The release is prepared and built separately before its files are
-              applied. Saved flows and collections stay in this browser.
+              {release?.runtime === "desktop"
+                ? "Download the latest macOS DMG and replace u in Applications. Your saved workspace stays in this app."
+                : "The release is prepared and built separately before its files are applied. Saved flows and collections stay in this browser."}
             </p>
             {release?.reason && (
               <div className="update-guidance">
@@ -243,25 +252,49 @@ export default function Updates({
                 <span>{release.reason}</span>
               </div>
             )}
-            <button
-              className="primary"
-              disabled={
-                disabled ||
-                release?.state !== "available" ||
-                !release.ready ||
-                job.phase === "complete"
-              }
-              onClick={() => void install()}
-            >
-              <Download size={14} />
-              {job.running
-                ? "Updating…"
-                : release?.latestVersion
-                  ? `Update to ${release.latestVersion}`
-                  : "Install update"}
-            </button>
+            {release?.runtime === "desktop" &&
+            release.state === "available" &&
+            release.releaseUrl ? (
+              <a
+                className="desktop-download primary"
+                href={release.releaseUrl}
+                target="_blank"
+                rel="noreferrer"
+                onClick={(event) => {
+                  if (isDesktop()) {
+                    event.preventDefault();
+                    void openRelease(release.releaseUrl!).catch((e) =>
+                      setError(String(e)),
+                    );
+                  }
+                }}
+              >
+                <Download size={14} />
+                Download macOS update
+              </a>
+            ) : (
+              <button
+                className="primary"
+                disabled={
+                  disabled ||
+                  release?.state !== "available" ||
+                  !release.ready ||
+                  job.phase === "complete"
+                }
+                onClick={() => void install()}
+              >
+                <Download size={14} />
+                {job.running
+                  ? "Updating…"
+                  : release?.latestVersion
+                    ? `Update to ${release.latestVersion}`
+                    : "Install update"}
+              </button>
+            )}
             <small>
-              Restart u after installation. Local edits must be committed first.
+              {release?.runtime === "desktop"
+                ? "Quit u before replacing the app, then open it again."
+                : "Restart u after installation. Local edits must be committed first."}
             </small>
           </section>
         </div>
@@ -271,7 +304,19 @@ export default function Updates({
               <CheckCircle2 size={16} />
               <h3>What’s new in {release.latestVersion}</h3>
               {release.releaseUrl && (
-                <a href={release.releaseUrl} target="_blank" rel="noreferrer">
+                <a
+                  href={release.releaseUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  onClick={(event) => {
+                    if (isDesktop()) {
+                      event.preventDefault();
+                      void openRelease(release.releaseUrl!).catch((e) =>
+                        setError(String(e)),
+                      );
+                    }
+                  }}
+                >
                   View release
                   <ExternalLink size={12} />
                 </a>

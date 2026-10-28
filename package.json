@@ -1,6 +1,6 @@
 {
   "name": "u",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "private": true,
   "type": "module",
   "scripts": {
@@ -8,14 +8,21 @@
     "build": "tsc --noEmit && vite build",
     "start": "node server/index.mjs",
     "test": "node --experimental-strip-types --test tests/*.test.ts tests/*.test.mjs",
-    "check": "tsc --noEmit"
+    "check": "tsc --noEmit",
+    "dev:desktop": "tauri dev",
+    "build:dmg": "tauri build --bundles app,dmg && node scripts/verify-macos-bundle.mjs",
+    "dev:web": "vite --host 127.0.0.1 --port 5174",
+    "build:web": "tsc --noEmit && vite build",
+    "test:native": "cargo test --manifest-path src-tauri/Cargo.toml --lib"
   },
   "dependencies": {
+    "@tauri-apps/api": "^2.12.4",
+    "lucide-react": "^0.468.0",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0",
-    "lucide-react": "^0.468.0"
+    "react-dom": "^19.0.0"
   },
   "devDependencies": {
+    "@tauri-apps/cli": "^2.12.4",
     "@types/node": "^24.0.0",
     "@types/react": "^19.0.0",
     "@types/react-dom": "^19.0.0",
@@ -34,5 +41,7 @@
   "homepage": "https://github.com/duckfollow/u#readme",
   "bugs": {
     "url": "https://github.com/duckfollow/u/issues"
-  }
+  },
+  "description": "A local API workbench and workflow studio",
+  "author": "duckfollow"
 }

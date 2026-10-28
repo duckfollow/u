@@ -1,3 +1,4 @@
+import { isDesktop, nativeRequest } from "./native.ts";
 export type RequestSpec = {
   id: string;
   name: string;
@@ -97,7 +98,17 @@ export function seed(): Workspace {
       },
     ],
     environments: {
-      Local: JSON.stringify({ baseUrl: "http://127.0.0.1:4319" }, null, 2),
+      Local: JSON.stringify(
+        {
+          baseUrl: isDesktop()
+            ? "https://demo.u.local"
+            : typeof location === "undefined"
+              ? "http://127.0.0.1:4319"
+              : location.origin,
+        },
+        null,
+        2,
+      ),
       Development: '{\n  "baseUrl": "https://example.com"\n}',
       Production: '{\n  "baseUrl": "https://example.com"\n}',
     },
@@ -158,6 +169,21 @@ export async function send(
     throw Error("Headers must be a JSON object with string values");
   if (spec.auth)
     headers.Authorization = `Bearer ${interpolate(spec.auth, context)}`;
+  if (isDesktop()) {
+    const result = (await nativeRequest(
+      {
+        url: interpolate(spec.url, context),
+        method: spec.method,
+        headers,
+        body: interpolate(spec.body, context),
+      },
+      signal,
+    )) as Result;
+    try {
+      result.body = JSON.parse(result.body as string);
+    } catch {}
+    return result;
+  }
   const session = await fetch("/api/session", { signal }).then((r) => r.json());
   const response = await fetch("/api/request", {
     method: "POST",

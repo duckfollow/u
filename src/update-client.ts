@@ -1,5 +1,7 @@
+import { isDesktop, nativeUpdate } from "./native";
 export type Release = {
   currentVersion: string;
+  runtime?: "web" | "desktop";
   repository: string | null;
   state?: string;
   ready?: boolean;
@@ -10,7 +12,8 @@ export type Release = {
   releaseUrl?: string;
   checkedAt?: string;
 };
-export async function updateApi(path: string, data?: unknown) {
+export async function updateApi(path: string, data?: unknown): Promise<any> {
+  if (isDesktop()) return nativeUpdate(path);
   const { token } = await fetch("/api/session").then((r) => r.json());
   const result = await fetch("/api/updates/" + path, {
     method: path === "status" ? "GET" : "POST",

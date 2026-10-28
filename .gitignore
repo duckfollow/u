@@ -5,3 +5,7 @@ dist/
 *.log
 
 work/
+
+
+src-tauri/target/
+src-tauri/gen/

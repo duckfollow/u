@@ -596,7 +596,6 @@ export default function App() {
             <strong>u</strong>
             <small>API STUDIO</small>
           </div>
-          <span className="alpha">{appVersion ? `v${appVersion}` : "…"}</span>
         </div>
         <div className="workspace">
           <span className="workspace-icon">S</span>
@@ -619,7 +618,6 @@ export default function App() {
             { id: "flows", icon: Workflow, label: "Flows" },
             { id: "history", icon: Clock, label: "History" },
             { id: "environments", icon: Settings2, label: "Environments" },
-            { id: "updates", icon: RefreshCw, label: "Updates" },
           ].map((n) => (
             <button
               title={n.label}
@@ -634,15 +632,6 @@ export default function App() {
             >
               <n.icon size={17} />
               <span className="nav-label">{n.label}</span>
-              {n.id === "updates" && updateInfo?.state === "available" && (
-                <span
-                  className="update-nav-badge"
-                  title={`Version ${updateInfo.latestVersion} available`}
-                  aria-label={`Version ${updateInfo.latestVersion} available`}
-                >
-                  New
-                </span>
-              )}
               {n.id === "flows" && (
                 <span className="count">{w.flows.length}</span>
               )}
@@ -728,6 +717,33 @@ export default function App() {
               e.target.value = "";
             }}
           />
+        </div>
+        <div className="sidebar-update-footer">
+          <button
+            className={`sidebar-update-button ${view === "updates" ? "active" : ""}`}
+            aria-label="Updates"
+            aria-current={view === "updates" ? "page" : undefined}
+            title={`Updates${appVersion ? ` · v${appVersion}` : ""}${updateInfo?.state === "available" ? ` · New version ${updateInfo.latestVersion}` : ""}`}
+            disabled={busy}
+            onClick={() => {
+              setView("updates");
+              setError("");
+            }}
+          >
+            <RefreshCw size={16} />
+            <span className="update-footer-label">Updates</span>
+            <span className="update-footer-version">
+              {appVersion ? `v${appVersion}` : "…"}
+            </span>
+            {updateInfo?.state === "available" && (
+              <span
+                className="update-nav-badge"
+                aria-label={`Version ${updateInfo.latestVersion} available`}
+              >
+                New
+              </span>
+            )}
+          </button>
         </div>
       </aside>
       <main>

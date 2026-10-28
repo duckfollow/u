@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.1.2 — Unreleased
+
+- Add a Tauri/Rust desktop app and macOS DMG build based on Dum-E's project structure.
+- Send HTTP natively with cancellation and bounded response sizes; include offline demo endpoints.
+- Support desktop GitHub version checks and opening the release page for DMG updates.
+- Move Updates and the installed version to the sidebar footer.
+
 ## 0.1.1 — 2026-10-28
 
 First public release of u, a local API workbench and workflow studio.

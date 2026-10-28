@@ -52,7 +52,7 @@ Collections, flows, environment values, and the latest 100 standalone requests p
 
 The local relay supports HTTP(S), a 30-second timeout, 2 MB request payloads and 5 MB UTF-8 responses. It uses a per-process session token and checks Host and Origin. Requests run from your machine, including access to local APIs. TLS verification stays enabled. No telemetry is included. Google Fonts are optional; system fonts work offline.
 
-This first version is a local web application. Native desktop packaging, freeform drag-and-connect branching, OAuth, binary/multipart bodies, Postman format import, and multi-workspace management are not implemented yet. Collections currently use a flat saved-request list.
+u can run as a local web application or a macOS desktop app built with Tauri. Freeform drag-and-connect branching, OAuth, binary/multipart bodies, Postman format import, and multi-workspace management are not implemented yet. Collections currently use a flat saved-request list.
 
 ## Verify
 
@@ -97,3 +97,20 @@ To enable installation, this folder must have an initial commit, a clean working
 **Install update** fetches the exact release tag, prepares it in a temporary Git worktree, installs dependencies with lifecycle scripts disabled, and runs its production build. Only after that succeeds does the updater check again for local changes, fast-forward the project, and use the prepared dependencies and build. Release build commands execute code from the configured repository; use the project's trusted source. A failed preparation leaves the current checkout untouched. If applying files is interrupted, the page reports the failure and any required repair; application is not a transactional rollback.
 
 The updater runs separately from the web server and records progress under Git's `u-updater` directory, including a lock that prevents concurrent installations. Previous dependency/build folders are retained there. Restart u using your normal launch command after installation, then reload the page. Browser workspace data is unaffected. In development mode, file watching may restart the backend during installation; the detached worker continues, and the Updates page reconnects while polling.
+
+## macOS desktop app (Tauri)
+
+The desktop structure follows Dum-E: React/Vite frontend, Tauri 2/Rust shell, ad-hoc app signing, and DMG bundling. The desktop app sends HTTP requests directly through Rust and needs no separately installed Node.js runtime. Its bundled demo uses `https://demo.u.local` as a local fixture handled inside the app; it makes no network request to that domain.
+
+Build prerequisites are Node.js 24+, Rust, and Xcode Command Line Tools on macOS:
+
+```sh
+npm ci
+npm run build:dmg
+```
+
+The DMG is generated under `src-tauri/target/release/bundle/dmg/`. Development uses `npm run dev:desktop`; native tests use `npm run test:native`. The macOS minimum is 13.5. Builds target the architecture of the machine running the build.
+
+Desktop workspaces persist in the webview for the app identifier `com.duckfollow.u`, separately from the browser version. GitHub release checks work in both versions. Desktop updates open the official release page for downloading a DMG and replacing the app, matching Dum-E's approach; the source-checkout Git updater applies only to the web version.
+
+The generated app is ad-hoc signed and bundle integrity is verified after the build. Developer ID signing and Apple notarization are required for normal public distribution without Gatekeeper prompts; they are not provided by this local build.
