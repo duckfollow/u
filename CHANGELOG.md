@@ -1,6 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.1.3 — 2026-11-01
+
+- Redesign the sidebar with clearer navigation, item counts, a collapsible layout, and more space for saved requests and flows.
+- Search saved requests and flows together by name, HTTP method, or request URL, with useful empty states.
+- Support narrow windows with an expandable sidebar overlay that closes after selecting a menu or item.
+- Open Updates in a dialog while keeping the current workspace in place; show version status, release notes, and companion tools.
+- Add a View current release action in the desktop app; preserve the web source-checkout installer.
 
 - Delete saved requests from the Collections sidebar with a confirmation dialog and an empty-state action.
 
