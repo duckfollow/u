@@ -227,6 +227,18 @@ async fn open_release_page(url: String) -> Result<(), String> {
         .strip_prefix("https://github.com/duckfollow/u/releases/tag/")
         .ok_or("Invalid release URL")?;
     Version::parse(tag.strip_prefix('v').unwrap_or(tag)).map_err(|_| "Invalid release tag")?;
+    open_browser(url).await
+}
+#[tauri::command]
+async fn open_companion_app(app: String) -> Result<(), String> {
+    match app.as_str() {
+        "edith" | "dum-e" | "ultron" => {
+            open_browser(format!("https://github.com/duckfollow/{app}")).await
+        }
+        _ => Err("Unknown application".into()),
+    }
+}
+async fn open_browser(url: String) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         std::process::Command::new("open")
             .arg(url)
@@ -251,6 +263,7 @@ pub fn run() {
             cancel_request,
             update_status,
             check_update,
+            open_companion_app,
             open_release_page
         ])
         .run(tauri::generate_context!())

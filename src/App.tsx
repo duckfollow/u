@@ -32,6 +32,10 @@ import {
   LayoutGrid,
   RotateCcw,
   Globe,
+  PanelLeftClose,
+  PanelLeftOpen,
+  X,
+  FolderOpen,
 } from "lucide-react";
 import {
   seed,
@@ -58,6 +62,19 @@ function load() {
 export default function App() {
   const [updateInfo, setUpdateInfo] = useState<Release | null>(null);
   const [appVersion, setAppVersion] = useState("");
+  const [updatesOpen, setUpdatesOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(() => {
+    try {
+      return (
+        localStorage.getItem("u-sidebar-collapsed") === "true" ||
+        (localStorage.getItem("u-sidebar-collapsed") === null &&
+          matchMedia("(max-width: 720px)").matches)
+      );
+    } catch {
+      return false;
+    }
+  });
+  const [libraryView, setLibraryView] = useState("flows");
   useEffect(() => {
     let active = true;
     async function startup() {
@@ -473,13 +490,21 @@ export default function App() {
     setPendingDelete(null);
     setError("");
   }
-  function createItem() {
-    if (view === "requests") {
+  function closeMobileSidebar() {
+    if (matchMedia("(max-width: 720px)").matches) setSidebarCollapsed(true);
+  }
+  function createItem(kind = view) {
+    closeMobileSidebar();
+    setQuery("");
+    if (kind === "requests") {
+      setView("requests");
+      setLibraryView("requests");
       const r = request();
       persist({ ...w, requests: [...w.requests, r] });
       setReqId(r.id);
       setResponse(null);
     } else {
+      setLibraryView("flows");
       const f = { id: uid(), name: "Untitled flow", steps: [] };
       persist({ ...w, flows: [...w.flows, f] });
       setFlowId(f.id);
@@ -611,83 +636,176 @@ export default function App() {
           onConfirm={deleteRequest}
         />
       )}
-      <aside className="sidebar">
+      <aside
+        className={`sidebar studio-sidebar ${sidebarCollapsed ? "is-collapsed" : "is-expanded"}`}
+        aria-label="Workspace sidebar"
+        id="workspace-sidebar"
+      >
         <div className="brand">
           <div className="logo">
             u<span>•</span>
           </div>
-          <div>
+          <div className="brand-copy">
             <strong>u</strong>
             <small>API STUDIO</small>
           </div>
+          <button
+            className="sidebar-toggle"
+            aria-label={
+              sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
+            }
+            aria-expanded={!sidebarCollapsed}
+            aria-controls="workspace-sidebar"
+            onClick={() => {
+              setSidebarCollapsed(!sidebarCollapsed);
+              try {
+                localStorage.setItem(
+                  "u-sidebar-collapsed",
+                  String(!sidebarCollapsed),
+                );
+              } catch {}
+            }}
+          >
+            {sidebarCollapsed ? (
+              <PanelLeftOpen size={16} />
+            ) : (
+              <PanelLeftClose size={16} />
+            )}
+          </button>
         </div>
         <div className="workspace">
-          <span className="workspace-icon">S</span>
+          <span className="workspace-icon">
+            <FolderOpen size={15} />
+          </span>
           <div>
-            Stark workspace<small>Local workspace</small>
+            My workspace
+            <small>
+              <span className="sidebar-local-dot" /> Saved on this device
+            </small>
           </div>
-          <ChevronRight size={14} />
         </div>
-        <div className="search">
-          <Search size={14} />
-          <input
-            placeholder="Find in workspace"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-          />
-        </div>
-        <nav>
+        <div className="sidebar-nav-label">WORKSPACE</div>
+        <nav aria-label="Main navigation">
           {[
-            { id: "requests", icon: Send, label: "Collections" },
-            { id: "flows", icon: Workflow, label: "Flows" },
-            { id: "history", icon: Clock, label: "History" },
-            { id: "environments", icon: Settings2, label: "Environments" },
+            {
+              id: "requests",
+              icon: Send,
+              label: "Collections",
+              count: w.requests.length,
+            },
+            {
+              id: "flows",
+              icon: Workflow,
+              label: "Flows",
+              count: w.flows.length,
+            },
+            {
+              id: "history",
+              icon: Clock,
+              label: "History",
+              count: w.history.length,
+            },
+            {
+              id: "environments",
+              icon: Settings2,
+              label: "Environments",
+              count: Object.keys(w.environments).length,
+            },
           ].map((n) => (
             <button
               title={n.label}
               aria-label={n.label}
+              aria-current={view === n.id ? "page" : undefined}
               disabled={busy}
               className={view === n.id ? "active" : ""}
               key={n.id}
               onClick={() => {
+                closeMobileSidebar();
                 setView(n.id);
+                if (n.id === "flows" || n.id === "requests")
+                  setLibraryView(n.id);
                 setError("");
               }}
             >
               <n.icon size={17} />
               <span className="nav-label">{n.label}</span>
-              {n.id === "flows" && (
-                <span className="count">{w.flows.length}</span>
-              )}
+              <span className="count">{n.count}</span>
             </button>
           ))}
         </nav>
-        <div className="section-heading">
-          {view === "requests" ? "COLLECTIONS" : "YOUR FLOWS"}
-          <button title="Create new" disabled={busy} onClick={createItem}>
-            <Plus size={15} />
-          </button>
-        </div>
-        <div className="items">
-          {view === "requests"
-            ? w.requests
+        <section className="sidebar-library" aria-label="Workspace library">
+          <div className="section-heading">
+            <span>
+              {query
+                ? "SEARCH RESULTS"
+                : libraryView === "requests"
+                  ? "SAVED REQUESTS"
+                  : "YOUR FLOWS"}
+            </span>
+            <button
+              title={libraryView === "requests" ? "New request" : "New flow"}
+              aria-label={
+                libraryView === "requests" ? "New request" : "New flow"
+              }
+              disabled={busy}
+              onClick={() => createItem(libraryView)}
+            >
+              <Plus size={15} />
+            </button>
+          </div>
+          <div className="search">
+            <Search size={14} />
+            <input
+              aria-label="Search requests and flows"
+              placeholder="Search requests & flows…"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+            />
+            {query && (
+              <button
+                aria-label="Clear sidebar search"
+                onClick={() => setQuery("")}
+              >
+                <X size={12} />
+              </button>
+            )}
+          </div>
+          <div className="items">
+            {(libraryView === "requests" || query) &&
+              w.requests
                 .filter((r) =>
-                  r.name.toLowerCase().includes(query.toLowerCase()),
+                  (r.name + " " + r.method + " " + r.url)
+                    .toLowerCase()
+                    .includes(query.trim().toLowerCase()),
                 )
                 .map((r) => (
                   <div
-                    className={`request-sidebar-row ${reqId === r.id ? "chosen" : ""}`}
+                    className={`request-sidebar-row ${view === "requests" && reqId === r.id ? "chosen" : ""}`}
                     key={r.id}
                   >
                     <button
                       className="request-select"
+                      title={r.name || "Untitled request"}
+                      aria-current={
+                        view === "requests" && reqId === r.id
+                          ? "true"
+                          : undefined
+                      }
                       disabled={busy}
                       onClick={() => {
+                        closeMobileSidebar();
                         setReqId(r.id);
+                        setView("requests");
+                        setLibraryView("requests");
                         setResponse(null);
+                        setError("");
                       }}
                     >
-                      <span className="method">{r.method}</span>
+                      <span
+                        className={`method method-${r.method.toLowerCase()}`}
+                      >
+                        {r.method}
+                      </span>
                       <span className="request-sidebar-name">
                         {r.name || "Untitled request"}
                       </span>
@@ -702,47 +820,91 @@ export default function App() {
                       <Trash2 size={13} />
                     </button>
                   </div>
-                ))
-            : w.flows
+                ))}
+            {(libraryView === "flows" || query) &&
+              w.flows
                 .filter((f) =>
-                  f.name.toLowerCase().includes(query.toLowerCase()),
+                  f.name.toLowerCase().includes(query.trim().toLowerCase()),
                 )
                 .map((f) => (
                   <button
                     disabled={busy}
-                    className={flowId === f.id ? "chosen" : ""}
+                    title={f.name || "Untitled flow"}
+                    aria-current={
+                      view === "flows" && flowId === f.id ? "true" : undefined
+                    }
+                    className={`sidebar-flow ${view === "flows" && flowId === f.id ? "chosen" : ""}`}
                     key={f.id}
                     onClick={() => {
+                      closeMobileSidebar();
                       setFlowId(f.id);
                       setStepId(f.steps[0]?.id);
                       setView("flows");
+                      setLibraryView("flows");
                       reset();
                     }}
                   >
                     <Workflow size={15} />
-                    {f.name}
+                    <span>{f.name || "Untitled flow"}</span>
+                    <small>{f.steps.length}</small>
                   </button>
                 ))}
-        </div>
-        <div className="sidebar-bottom">
-          <div className="bot">
-            <span className="eyes">▰ ▰</span>
-            <i />
+            {!(libraryView === "requests" || query
+              ? w.requests.some((r) =>
+                  (r.name + " " + r.method + " " + r.url)
+                    .toLowerCase()
+                    .includes(query.trim().toLowerCase()),
+                )
+              : false) &&
+              !(libraryView === "flows" || query
+                ? w.flows.some((f) =>
+                    f.name.toLowerCase().includes(query.trim().toLowerCase()),
+                  )
+                : false) && (
+                <div className="sidebar-empty">
+                  <Search size={18} />
+                  <strong>
+                    {query ? "No matches found" : "A fresh start"}
+                  </strong>
+                  <p>
+                    {query
+                      ? "Try another name, URL, or method."
+                      : libraryView === "requests"
+                        ? "Save your first request here."
+                        : "Create your first flow."}
+                  </p>
+                  {query ? (
+                    <button onClick={() => setQuery("")}>Clear search</button>
+                  ) : (
+                    <button
+                      disabled={busy}
+                      onClick={() => createItem(libraryView)}
+                    >
+                      Create {libraryView === "requests" ? "request" : "flow"}
+                    </button>
+                  )}
+                </div>
+              )}
           </div>
-          <strong>Your workshop, connected.</strong>
-          <p>
-            Build, test, and connect APIs
-            <br />
-            from one quiet workspace.
-          </p>
+        </section>
+        <div className="sidebar-bottom">
           <div className="transfer">
-            <button disabled={busy} onClick={() => file.current?.click()}>
+            <button
+              title="Import workspace"
+              aria-label="Import workspace"
+              disabled={busy}
+              onClick={() => file.current?.click()}
+            >
               <Upload size={13} />
-              Import
+              <span>Import</span>
             </button>
-            <button onClick={exportData}>
+            <button
+              title="Export workspace"
+              aria-label="Export workspace"
+              onClick={exportData}
+            >
               <Download size={13} />
-              Export
+              <span>Export</span>
             </button>
           </div>
           <input
@@ -760,13 +922,13 @@ export default function App() {
         <div className="sidebar-update-footer">
           <ThemeControl />
           <button
-            className={`sidebar-update-button ${view === "updates" ? "active" : ""}`}
+            className={`sidebar-update-button ${updatesOpen ? "active" : ""}`}
             aria-label="Updates"
-            aria-current={view === "updates" ? "page" : undefined}
+            aria-haspopup="dialog"
             title={`Updates${appVersion ? ` · v${appVersion}` : ""}${updateInfo?.state === "available" ? ` · New version ${updateInfo.latestVersion}` : ""}`}
             disabled={busy}
             onClick={() => {
-              setView("updates");
+              setUpdatesOpen(true);
               setError("");
             }}
           >
@@ -786,6 +948,13 @@ export default function App() {
           </button>
         </div>
       </aside>
+      {!sidebarCollapsed && (
+        <button
+          className="sidebar-backdrop"
+          aria-label="Close sidebar"
+          onClick={() => setSidebarCollapsed(true)}
+        />
+      )}
       <main>
         <header>
           <div className="breadcrumb">
@@ -845,7 +1014,7 @@ export default function App() {
               )}
             />
 
-            <button disabled={busy} onClick={createItem}>
+            <button disabled={busy} onClick={() => createItem()}>
               <Plus size={14} />
               New {view === "flows" ? "flow" : "request"}
             </button>
@@ -1547,7 +1716,7 @@ export default function App() {
                 <Send size={30} />
                 <h3>No saved requests</h3>
                 <p>Create a request to start testing an API.</p>
-                <button className="primary" onClick={createItem}>
+                <button className="primary" onClick={() => createItem()}>
                   <Plus size={14} />
                   New request
                 </button>
@@ -1634,8 +1803,9 @@ export default function App() {
             </div>
           </>
         )}
-        {view === "updates" && (
+        {updatesOpen && (
           <Updates
+            onClose={() => setUpdatesOpen(false)}
             onBusy={setBusy}
             initialRelease={updateInfo}
             onChecked={setUpdateInfo}
