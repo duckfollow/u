@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import IconTooltip from "./IconTooltip";
 import Dropdown from "./Dropdown";
 import {
   getThemePreference,
@@ -13,10 +14,10 @@ export default function ThemeControl() {
     return () => window.removeEventListener("u-theme-changed", sync);
   }, []);
   return (
+    <IconTooltip text={`Theme · ${value[0].toUpperCase() + value.slice(1)}`}>
     <div className="theme-control">
-      <span className="theme-control-label">Theme</span>
       <Dropdown
-        label="Appearance"
+        label="Theme"
         variant="theme"
         value={value}
         onChange={(value) => setThemePreference(value as ThemePreference)}
@@ -35,5 +36,6 @@ export default function ThemeControl() {
         ]}
       />
     </div>
+    </IconTooltip>
   );
 }

@@ -1,6 +1,6 @@
 # u
 
-A local API workbench with a sequential flow studio. Inspired by the workshop-assistant spirit of U and Dum-E; an original interface, not an official Marvel product.
+A local API workbench for organizing collections, exploring APIs, generating documentation, and running sequential workflows. Inspired by the workshop-assistant spirit of U and Dum-E; an original interface, not an official Marvel product.
 
 ## Run
 
@@ -117,8 +117,72 @@ The generated app is ad-hoc signed and bundle integrity is verified after the bu
 
 ## Appearance
 
-Use **Theme** above Updates in the sidebar to choose **Light**, **Dark**, or **System**. System follows changes to the device appearance automatically. The preference persists on this device, independently of workspace import/export, and is applied before the interface renders. Desktop builds also update the native window appearance.
+Use the **Theme** icon in the sidebar footer to choose **Light**, **Dark**, or **System**. System follows changes to the device appearance automatically. The preference persists on this device, independently of workspace import/export, and is applied before the interface renders. Desktop builds also update the native window appearance.
 
 ### Delete saved requests
 
 In Collections, use the trash icon at the right of a saved request in the sidebar. Confirm the request name in the dialog to delete it, or choose Cancel / Escape to keep it. Deletion is permanent and has no Undo. Copies used in flows and request history remain unchanged. On narrow screens, use the trash icon beside the request selector.
+
+## Collections and authorization examples
+
+Open **Collections**, then choose **+ → New collection** beside the heading. Use **⋯** or right-click a collection/folder to create a nested folder or request, rename it, view documentation, or delete it. Drag grips to reorder or move items. The request editor's **Collection** menu shows full paths and can move requests between groups. Requests without a group appear under **Unfiled**. Deletion includes nested folders and offers a choice between keeping requests in Unfiled and deleting them. Built-in example collections default to deleting their requests. Workspace exports preserve the tree and ordering; older workspaces migrate automatically.
+
+Choose **Examples → Authorization → Add authorization examples** to add **Examples / Authorization**, inside the **Examples** folder, containing 15 editable requests: public access, Basic, Bearer, API keys in headers/query parameters, explicit session cookies, cookie + CSRF, OAuth client credentials and refresh-token exchanges, scope checks, and expected 401/403 responses. A separate **Auth · OAuth token → protected API** workflow demonstrates passing an access token between steps. Re-adding the pack preserves existing examples and edits.
+
+These requests run against an **in-app local simulation** at `https://auth-demo.u.local`; they make no network request and work in both web and desktop builds. Demo responses include `x-u-demo: local-simulation`. Tokens, sessions and client credentials are fixed teaching fixtures, with no real authentication, token expiry enforcement, signing, cookie jar or identity provider. Request descriptions explain expected outcomes. Change the URL and replace demo credentials to adapt the request to an actual service; other authorization headers belong in **Headers**, while the **Authorization** tab sets a Bearer token.
+
+The examples follow the request shapes in [HTTP Basic (RFC 7617)](https://www.rfc-editor.org/rfc/rfc7617.html), [Bearer usage (RFC 6750)](https://www.rfc-editor.org/rfc/rfc6750.html) and [OAuth 2.0 token grants (RFC 6749)](https://www.rfc-editor.org/rfc/rfc6749.html). API-key and cookie/CSRF conventions vary by service. JWT validation, authorization code + PKCE, OpenID Connect/SSO, device authorization, Digest, OAuth 1.0, HMAC/AWS SigV4, mTLS and NTLM/Kerberos require additional provider setup or protocol support and are not implemented by this example pack.
+
+### More example packs
+
+Open **Examples**, choose a category, then **Add … examples**:
+
+| Category | Included | How to try it |
+| --- | --- | --- |
+| HTTP Basics | 8 requests | Send query parameters, custom headers and JSON bodies; compare GET, POST, PUT, PATCH, DELETE, HEAD and OPTIONS. The echo endpoint does not change stored data. |
+| Variables & Environments | 2 requests, 1 workflow | Adding the pack selects **Examples · Local**. Switch to **Examples · Development** to compare `baseUrl`, `demoName` and `demoLabel`. Run **Examples · Variables → next request** to reuse response values. |
+| CRUD Workflow | 6 requests, 1 workflow | Try the numbered requests, or run **Examples · Create → read → update → delete**. The workflow uses the returned project ID and can run repeatedly. |
+
+Each request describes its expected result. These packs use the in-app `https://examples.u.local` simulation in both web and desktop builds, without network requests. CRUD data is stored locally when storage is available; saved requests, workflows, environments and exports are separate from that demo dataset.
+
+Use **Examples → Reset demo data**, then confirm, to restore the initial demo project (ID 1). This preserves saved requests, workflows and environments. Re-adding a pack keeps edits, avoids duplicates and restores its unfiled examples to its collection. Existing environments are never overwritten. Built-in example collections default to deleting their requests when their collection is deleted; the confirmation can retain them instead.
+
+### View API documentation
+
+Choose **⋯ → View documentation** beside any collection or folder to open its generated API documentation. Folder documentation includes every child collection, regardless of the current sidebar search. Expand an endpoint to inspect its method, URL, description, query parameters, headers, Bearer configuration, raw body and template variables. **Open request** returns to its editor.
+
+Documentation reads saved request configuration without sending requests or resolving environment values. It does not infer required fields or response schemas. Edited requests are reflected the next time their documentation is opened.
+
+### Response examples in documentation
+
+Built-in example requests include an **Illustrative demo response** with status, headers and body. These are fixed teaching examples rather than live results; viewing documentation does not execute the request or change demo data.
+
+For your own APIs, send a saved request and choose **Save response example** beneath the response. Its status, headers and body are captured as a separate snapshot, shown under **Response examples** in collection/folder documentation and included in workspace exports. Run and save again to keep additional success or error examples. Saved responses do not change when the live response changes.
+
+### Export Markdown documentation
+
+Open a collection or folder's documentation and click **Export Markdown** to download a `.md` file. The export includes all requests in that scope, descriptions, URLs, query parameters, authorization configuration, headers, bodies, template variables and response examples. Folder exports include all child collections. Saved configuration is exported as written; environment values are not resolved and no API requests are sent.
+
+### Nested folders and drag-and-drop
+
+Collections can contain requests and nested folders. Choose **⋯ → New folder** or **New request** beside a collection/folder. Existing Examples groups are migrated into the same tree without changing saved request content.
+
+Drag the grip beside a request or folder onto another group to move it inside. Drop on the line before a sibling to reorder it; the bottom drop line returns an item to the top level (or Unfiled for requests). Cyclic folder moves are rejected. Focus a grip and use **Alt + Up/Down** to reorder siblings or **Alt + Left** to move up one level. Requests can also move through the editor's Collection menu, which shows their full path.
+
+Folder membership and ordering survive workspace exports/imports. Documentation, Markdown export and collection deletion include nested folders.
+
+### Collection management menu
+
+Use **⋯** beside any collection/folder, or right-click its heading, to open the same management menu: **View documentation**, **New folder**, **New request**, **Rename** and **Delete…**. Rename edits the name inline; press Enter or the checkmark to save, or Escape to cancel. Delete opens the existing confirmation. Unfiled offers documentation and a new request. Menus support arrow keys, **Escape**, and **Shift + F10** on a focused heading.
+
+### Request workbench
+
+The request editor keeps the collection path, editable request name and Method / URL / Send controls above independently scrolling Request and Response panels. Drag the divider or focus it and use Left/Right to adjust the split. Narrow screens stack the panels. Click the **ⓘ** beside a request name to open its example guide.
+
+Headers support **Table** and **Raw JSON** views. Toggle individual table rows off to omit them from requests while retaining their values; disabled headers are included in workspace exports. Duplicate header names are flagged before table changes are saved. The Response panel offers **Body**, **Headers**, **Examples**, and **Save example** beside its tabs.
+
+### Query parameters
+
+Use the request editor's **Params** tab to add, edit, remove or disable query parameters. Enabled rows update the URL immediately; direct URL edits update the table. Repeated keys and `{{variables}}` are supported, and URL fragments are preserved. Disabled parameters remain in the saved request and workspace exports without being sent.
+
+Body JSON supports syntax colors and **Format JSON**, which adjusts whitespace while preserving numeric literals and duplicate keys. Invalid JSON remains unchanged and shows an error. Success appears briefly on the format button. Response status uses a colored badge, with time and size displayed separately. Workspace navigation and connection status stay fixed while editor panels scroll.

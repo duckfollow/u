@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.2.0 — 2026-11-08
+
+- Add nested collections/folders with rename, drag-and-drop moves/reordering, and shared ellipsis/right-click management menus.
+- Add an Examples catalog with Authorization, HTTP Basics, Variables & Environments, and CRUD packs: 31 demo requests and 3 workflows in total, plus local demo reset.
+- Generate API documentation for collections and nested folders, capture response examples, and export Markdown documentation.
+- Redesign the request workbench with adjustable, independently scrolling Request/Response panels, compact tabs, a separate Send button, inline name editing, and an example-guide popover.
+- Add query parameter tables and header tables with enabled/disabled rows, URL synchronization, repeated query keys, and Raw JSON editing.
+- Add JSON syntax colors and a lossless Format JSON action; present response status, duration and size separately.
+- Compact sidebar navigation and utilities, move request history beside the environment selector, and keep workspace header/footer fixed.
+- Preserve existing request edits, workspace imports/exports, example reinstalls, and migrated collection membership.
+
 ## 0.1.3 — 2026-11-01
 
 - Redesign the sidebar with clearer navigation, item counts, a collapsible layout, and more space for saved requests and flows.

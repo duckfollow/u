@@ -1,12 +1,23 @@
+import { descendants, validCollectionTree } from "./collection-tree.ts";
+import { exampleDemoResponse } from "./example-demo.ts";
+import { authDemoResponse } from "./auth-examples.ts";
 import { isDesktop, nativeRequest } from "./native.ts";
+export type ResponseExample = {
+  id: string; name: string; status: number; statusText: string; headers: Record<string, string>; body: unknown;
+};
 export type RequestSpec = {
   id: string;
   name: string;
   method: string;
   url: string;
   headers: string;
+  disabledHeaders?: Record<string,string>;
+  disabledParams?: {key:string;value:string}[];
   body: string;
   auth: string;
+  responseExamples?: ResponseExample[];
+  description?: string;
+  collectionId?: string;
 };
 export type Step = {
   id: string;
@@ -33,6 +44,7 @@ export type Flow = { id: string; name: string; steps: Step[] };
 export type Workspace = {
   version: 1;
   requests: RequestSpec[];
+  collections?: { id: string; name: string; folder?: string; parentId?: string }[];
   flows: Flow[];
   environments: Record<string, string>;
   environment: string;
@@ -169,6 +181,13 @@ export async function send(
     throw Error("Headers must be a JSON object with string values");
   if (spec.auth)
     headers.Authorization = `Bearer ${interpolate(spec.auth, context)}`;
+  signal?.throwIfAborted();
+  const resolved = {
+    url: interpolate(spec.url, context), method: spec.method, headers,
+    body: interpolate(spec.body, context),
+  };
+  const demo = authDemoResponse(resolved) ?? exampleDemoResponse(resolved);
+  if (demo) return demo;
   if (isDesktop()) {
     const result = (await nativeRequest(
       {
@@ -210,6 +229,13 @@ export function validateWorkspace(value: unknown): value is Workspace {
     w.version === 1 &&
     Array.isArray(w.requests) &&
     w.requests.every(validRequest) &&
+    (w.collections === undefined || (
+      Array.isArray(w.collections) &&
+      w.collections.every(c => !!c && typeof c.id === "string" && !!c.id && typeof c.name === "string" && !!c.name.trim() && (c.folder === undefined || (typeof c.folder === "string" && !!c.folder.trim()))) &&
+      new Set(w.collections.map(c => c.id)).size === w.collections.length &&
+      validCollectionTree(w.collections)
+    )) &&
+    w.requests.every(r => r.collectionId === undefined || !!w.collections?.some(c => c.id === r.collectionId)) &&
     Array.isArray(w.flows) &&
     w.flows.every(
       (f) =>
@@ -275,6 +301,14 @@ function validRequest(r: RequestSpec) {
     ["id", "name", "method", "url", "headers", "body", "auth"].every(
       (k) => typeof r[k as keyof RequestSpec] === "string",
     ) &&
+    (r.disabledParams === undefined || (Array.isArray(r.disabledParams) && r.disabledParams.every(p => !!p && typeof p.key === "string" && typeof p.value === "string"))) &&
+    (r.disabledHeaders === undefined || (!!r.disabledHeaders && typeof r.disabledHeaders === "object" && !Array.isArray(r.disabledHeaders) && Object.values(r.disabledHeaders).every(v => typeof v === "string"))) &&
+    (r.responseExamples === undefined || (Array.isArray(r.responseExamples) && r.responseExamples.every(e =>
+      !!e && typeof e.id === "string" && typeof e.name === "string" && Number.isInteger(e.status) && e.status >= 100 && e.status <= 599 && typeof e.statusText === "string" &&
+      !!e.headers && typeof e.headers === "object" && !Array.isArray(e.headers) && Object.values(e.headers).every(v => typeof v === "string") && Object.hasOwn(e, "body")
+    ))) &&
+    (r.collectionId === undefined || typeof r.collectionId === "string") &&
+    (r.description === undefined || typeof r.description === "string") &&
     ["GET", "POST", "PUT", "PATCH", "DELETE", "HEAD", "OPTIONS"].includes(
       r.method,
     )
@@ -316,4 +350,20 @@ export async function executeStep(
   if (step.kind === "condition" && typeof result !== "boolean")
     throw Error("Condition must resolve to true or false");
   return result;
+}
+
+export function removeCollection(workspace: Workspace, collectionId: string, deleteRequests = false): Workspace {
+  if (!workspace.collections?.some(c => c.id === collectionId)) return workspace;
+  const ids = descendants(workspace.collections, collectionId);
+  return {
+    ...workspace,
+    collections: workspace.collections.filter(c => !ids.has(c.id)),
+    requests: deleteRequests
+      ? workspace.requests.filter(r => !ids.has(r.collectionId ?? ""))
+      : workspace.requests.map(r => {
+          if (!ids.has(r.collectionId ?? "")) return r;
+          const { collectionId: removed, ...request } = r;
+          return request;
+        }),
+  };
 }

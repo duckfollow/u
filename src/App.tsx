@@ -1,3 +1,17 @@
+import RequestWorkbench from "./RequestWorkbench";
+import { organizeCollectionTree, collectionPath, moveLibraryItem, descendants } from "./collection-tree";
+import LibraryCreateMenu from "./LibraryCreateMenu";
+import { captureResponse } from "./response-examples";
+import CollectionDocumentation from "./CollectionDocumentation";
+import type { DocumentationScope } from "./collection-docs";
+import IconTooltip from "./IconTooltip";
+import SidebarNavButton from "./SidebarNavButton";
+import { addExamplePack, examplePacks, isExampleCollection } from "./example-packs";
+import ConfirmCollectionDelete from "./ConfirmCollectionDelete";
+import { removeCollection } from "./model";
+import RequestCollections from "./RequestCollections";
+import AuthExamples from "./AuthExamples";
+import { organizeAuthExamples } from "./auth-examples";
 import ConfirmRequestDelete from "./ConfirmRequestDelete";
 import ThemeControl from "./ThemeControl";
 import { updateApi, type Release } from "./update-client";
@@ -32,8 +46,6 @@ import {
   LayoutGrid,
   RotateCcw,
   Globe,
-  PanelLeftClose,
-  PanelLeftOpen,
   X,
   FolderOpen,
 } from "lucide-react";
@@ -54,7 +66,7 @@ function load() {
     const raw = localStorage.getItem("u-workspace");
     if (raw) {
       const parsed = JSON.parse(raw);
-      if (validateWorkspace(parsed)) return parsed;
+      if (validateWorkspace(parsed)) return organizeCollectionTree(organizeAuthExamples(parsed));
     }
   } catch {}
   return seed();
@@ -111,6 +123,8 @@ export default function App() {
     };
   }, []);
   const [w, setW] = useState<Workspace>(load),
+    [documentationScope, setDocumentationScope] = useState<DocumentationScope | null>(null),
+    [showAuthExamples, setShowAuthExamples] = useState(false),
     [view, setView] = useState("flows"),
     [flowId, setFlowId] = useState(w.flows[0]?.id),
     [reqId, setReqId] = useState(w.requests[0]?.id),
@@ -119,6 +133,8 @@ export default function App() {
     ),
     [tab, setTab] = useState("body"),
     [response, setResponse] = useState<Result | null>(null),
+    [responseOwner, setResponseOwner] = useState<string | null>(null),
+    [responseSaved, setResponseSaved] = useState(false),
     [error, setError] = useState(""),
     [busy, setBusy] = useState(false),
     [outputs, setOutputs] = useState<Record<string, unknown>>({}),
@@ -127,13 +143,26 @@ export default function App() {
     [progress, setProgress] = useState<Record<string, Progress>>({}),
     [iteration, setIteration] = useState("all"),
     [query, setQuery] = useState(""),
+    [searchOpen, setSearchOpen] = useState(false),
     [notice, setNotice] = useState(""),
+    [collectionDraftFolder, setCollectionDraftFolder] = useState<string | null>(null),
+    [pendingCollectionDelete, setPendingCollectionDelete] = useState<string | null>(null),
     [pendingDelete, setPendingDelete] = useState<string | null>(null),
     [storageError, setStorageError] = useState(""),
     [pane, setPane] = useState<"canvas" | "details">("canvas"),
     [inspectorTab, setInspectorTab] = useState<"configure" | "output">(
       "configure",
     );
+  const searchInput = useRef<HTMLInputElement>(null);
+  const searchButton = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    if (searchOpen && !sidebarCollapsed) searchInput.current?.focus();
+  }, [searchOpen, sidebarCollapsed]);
+  function closeSearch() {
+    setSearchOpen(false);
+    setQuery("");
+    searchButton.current?.focus();
+  }
   const runnerRef = useRef<FlowRunner | null>(null);
   const abort = useRef<AbortController | null>(null),
     file = useRef<HTMLInputElement>(null);
@@ -143,8 +172,10 @@ export default function App() {
     parent = flow?.steps.find((s) => s.children?.some((c) => c.id === stepId)),
     siblings = parent?.children ?? flow?.steps ?? [],
     spec = w.requests.find((r) => r.id === reqId),
+    collectionToDelete = w.collections?.find(c => c.id === pendingCollectionDelete),
     requestToDelete = w.requests.find((r) => r.id === pendingDelete);
   function persist(value: Workspace) {
+    value = organizeCollectionTree(value);
     setW(value);
     try {
       localStorage.setItem("u-workspace", JSON.stringify(value));
@@ -210,6 +241,8 @@ export default function App() {
     try {
       const result = await send(spec, variables(w), abort.current.signal);
       setResponse(result);
+      setResponseOwner(spec.id);
+      setResponseSaved(false);
       persist({
         ...w,
         history: [
@@ -493,13 +526,13 @@ export default function App() {
   function closeMobileSidebar() {
     if (matchMedia("(max-width: 720px)").matches) setSidebarCollapsed(true);
   }
-  function createItem(kind = view) {
+  function createItem(kind = view, collectionId?: string) {
     closeMobileSidebar();
     setQuery("");
     if (kind === "requests") {
       setView("requests");
       setLibraryView("requests");
-      const r = request();
+      const r = { ...request(), ...(collectionId ? { collectionId } : {}) };
       persist({ ...w, requests: [...w.requests, r] });
       setReqId(r.id);
       setResponse(null);
@@ -530,7 +563,8 @@ export default function App() {
       if (f.size > 5_000_000) throw Error("Import is limited to 5 MB");
       const value = JSON.parse(await f.text());
       if (!validateWorkspace(value)) throw Error("Invalid u workspace");
-      persist(value);
+      const organized = organizeCollectionTree(organizeAuthExamples(value));
+      persist(organized);
       setPendingDelete(null);
       setFlowId(value.flows[0]?.id);
       setStepId(value.flows[0]?.steps[0]?.id);
@@ -629,369 +663,34 @@ export default function App() {
   }
   return (
     <div className="app">
-      {requestToDelete && (
-        <ConfirmRequestDelete
-          name={requestToDelete.name}
-          onCancel={() => setPendingDelete(null)}
-          onConfirm={deleteRequest}
-        />
-      )}
-      <aside
-        className={`sidebar studio-sidebar ${sidebarCollapsed ? "is-collapsed" : "is-expanded"}`}
-        aria-label="Workspace sidebar"
-        id="workspace-sidebar"
-      >
-        <div className="brand">
-          <div className="logo">
-            u<span>•</span>
-          </div>
-          <div className="brand-copy">
-            <strong>u</strong>
-            <small>API STUDIO</small>
-          </div>
-          <button
-            className="sidebar-toggle"
-            aria-label={
-              sidebarCollapsed ? "Expand sidebar" : "Collapse sidebar"
-            }
-            aria-expanded={!sidebarCollapsed}
-            aria-controls="workspace-sidebar"
-            onClick={() => {
-              setSidebarCollapsed(!sidebarCollapsed);
-              try {
-                localStorage.setItem(
-                  "u-sidebar-collapsed",
-                  String(!sidebarCollapsed),
-                );
-              } catch {}
-            }}
-          >
-            {sidebarCollapsed ? (
-              <PanelLeftOpen size={16} />
-            ) : (
-              <PanelLeftClose size={16} />
-            )}
-          </button>
-        </div>
-        <div className="workspace">
-          <span className="workspace-icon">
-            <FolderOpen size={15} />
-          </span>
-          <div>
-            My workspace
-            <small>
-              <span className="sidebar-local-dot" /> Saved on this device
-            </small>
-          </div>
-        </div>
+      {documentationScope && <CollectionDocumentation workspace={w} scope={documentationScope} onClose={()=>setDocumentationScope(null)} onOpen={id=>{setDocumentationScope(null);setReqId(id);setView("requests");setLibraryView("requests");setQuery("");setResponse(null);setError("");closeMobileSidebar();}}/>}
+      {showAuthExamples && <AuthExamples onClose={()=>setShowAuthExamples(false)} onAdd={id=>{persist(addExamplePack(w,id));setShowAuthExamples(false);setLibraryView("requests");setView("requests");setQuery("");setReqId(id==="authorization"?"auth-example-public":examplePacks.find(p=>p.id===id)!.requests[0].id);setResponse(null);setError("");setTab("headers");closeMobileSidebar();setNotice(`${examplePacks.find(p=>p.id===id)?.title} examples ready. Existing edits preserved.`);}}/>}
+      {collectionToDelete && <ConfirmCollectionDelete key={collectionToDelete.id} name={collectionToDelete.name} defaultDeleteRequests={isExampleCollection(collectionToDelete.id)} count={w.requests.filter(r=>descendants(w.collections??[],collectionToDelete.id).has(r.collectionId??"")).length} onCancel={()=>setPendingCollectionDelete(null)} onConfirm={deleteRequests=>{if(busy)return;const updated=removeCollection(w,collectionToDelete.id,deleteRequests);persist(updated);if(reqId&&!updated.requests.some(r=>r.id===reqId)){setReqId(updated.requests[0]?.id);setResponse(null);setError("");}setPendingCollectionDelete(null);setNotice(deleteRequests?"Collection and its requests deleted.":"Collection deleted. Requests kept in Unfiled.");}}/>}
+      {requestToDelete && <ConfirmRequestDelete name={requestToDelete.name} onCancel={()=>setPendingDelete(null)} onConfirm={deleteRequest}/>}
+      <aside className={`sidebar studio-sidebar ${sidebarCollapsed?"is-collapsed":"is-expanded"}`} aria-label="Workspace sidebar" id="workspace-sidebar">
+        <div className="brand"><div className="logo">u<span>•</span></div><div className="brand-copy"><strong>u</strong><small>API STUDIO</small></div></div>
+        <div className="workspace"><span className="workspace-icon"><FolderOpen size={15}/></span><div>My workspace<small><span className="sidebar-local-dot"/> Saved on this device</small></div></div>
         <div className="sidebar-nav-label">WORKSPACE</div>
         <nav aria-label="Main navigation">
-          {[
-            {
-              id: "requests",
-              icon: Send,
-              label: "Collections",
-              count: w.requests.length,
-            },
-            {
-              id: "flows",
-              icon: Workflow,
-              label: "Flows",
-              count: w.flows.length,
-            },
-            {
-              id: "history",
-              icon: Clock,
-              label: "History",
-              count: w.history.length,
-            },
-            {
-              id: "environments",
-              icon: Settings2,
-              label: "Environments",
-              count: Object.keys(w.environments).length,
-            },
-          ].map((n) => (
-            <button
-              title={n.label}
-              aria-label={n.label}
-              aria-current={view === n.id ? "page" : undefined}
-              disabled={busy}
-              className={view === n.id ? "active" : ""}
-              key={n.id}
-              onClick={() => {
-                closeMobileSidebar();
-                setView(n.id);
-                if (n.id === "flows" || n.id === "requests")
-                  setLibraryView(n.id);
-                setError("");
-              }}
-            >
-              <n.icon size={17} />
-              <span className="nav-label">{n.label}</span>
-              <span className="count">{n.count}</span>
-            </button>
-          ))}
+          {[{id:"requests",icon:Send,label:"Collections"},{id:"flows",icon:Workflow,label:"Flows"},{id:"environments",icon:Settings2,label:"Environments"}].map(n=><SidebarNavButton key={n.id} label={n.label} active={view===n.id} collapsed={sidebarCollapsed} disabled={busy} onClick={()=>{closeMobileSidebar();setView(n.id);if(n.id==="flows"||n.id==="requests")setLibraryView(n.id);setError("");}}><n.icon size={19} aria-hidden="true"/></SidebarNavButton>)}
+          <SidebarNavButton label="Examples" active={false} collapsed={sidebarCollapsed} disabled={busy} onClick={()=>setShowAuthExamples(true)}><FolderOpen size={19} aria-hidden="true"/></SidebarNavButton>
+          <SidebarNavButton label="Search" active={searchOpen} collapsed={sidebarCollapsed} disabled={busy} expanded={searchOpen&&!sidebarCollapsed} controls="sidebar-search" buttonRef={searchButton} onClick={()=>{if(searchOpen&&!sidebarCollapsed){closeSearch();return;}setSidebarCollapsed(false);try{localStorage.setItem("u-sidebar-collapsed","false");}catch{}setSearchOpen(true);}}><Search size={19} aria-hidden="true"/></SidebarNavButton>
         </nav>
-        <section className="sidebar-library" aria-label="Workspace library">
-          <div className="section-heading">
-            <span>
-              {query
-                ? "SEARCH RESULTS"
-                : libraryView === "requests"
-                  ? "SAVED REQUESTS"
-                  : "YOUR FLOWS"}
-            </span>
-            <button
-              title={libraryView === "requests" ? "New request" : "New flow"}
-              aria-label={
-                libraryView === "requests" ? "New request" : "New flow"
-              }
-              disabled={busy}
-              onClick={() => createItem(libraryView)}
-            >
-              <Plus size={15} />
-            </button>
-          </div>
-          <div className="search">
-            <Search size={14} />
-            <input
-              aria-label="Search requests and flows"
-              placeholder="Search requests & flows…"
-              value={query}
-              onChange={(e) => setQuery(e.target.value)}
-            />
-            {query && (
-              <button
-                aria-label="Clear sidebar search"
-                onClick={() => setQuery("")}
-              >
-                <X size={12} />
-              </button>
-            )}
-          </div>
+        <section className="sidebar-library" aria-label="Workspace library" onKeyDown={e=>{if(e.key==="Escape"&&searchOpen){e.preventDefault();closeSearch();}}}>
+          <div className="section-heading"><span>{query?"SEARCH RESULTS":libraryView==="requests"?"COLLECTIONS":"YOUR FLOWS"}</span>{libraryView==="requests"?<LibraryCreateMenu disabled={busy} onCollection={()=>setCollectionDraftFolder("")} onRequest={()=>createItem("requests")}/>:<button title="New flow" aria-label="New flow" disabled={busy} onClick={()=>createItem("flows")}><Plus size={15}/></button>}</div>
+          {searchOpen&&<div className="search" id="sidebar-search"><Search size={14}/><input ref={searchInput} aria-label="Search requests and flows" placeholder="Search requests & flows…" value={query} onChange={e=>setQuery(e.target.value)}/><button aria-label="Close sidebar search" onClick={closeSearch}><X size={12}/></button></div>}
           <div className="items">
-            {(libraryView === "requests" || query) &&
-              w.requests
-                .filter((r) =>
-                  (r.name + " " + r.method + " " + r.url)
-                    .toLowerCase()
-                    .includes(query.trim().toLowerCase()),
-                )
-                .map((r) => (
-                  <div
-                    className={`request-sidebar-row ${view === "requests" && reqId === r.id ? "chosen" : ""}`}
-                    key={r.id}
-                  >
-                    <button
-                      className="request-select"
-                      title={r.name || "Untitled request"}
-                      aria-current={
-                        view === "requests" && reqId === r.id
-                          ? "true"
-                          : undefined
-                      }
-                      disabled={busy}
-                      onClick={() => {
-                        closeMobileSidebar();
-                        setReqId(r.id);
-                        setView("requests");
-                        setLibraryView("requests");
-                        setResponse(null);
-                        setError("");
-                      }}
-                    >
-                      <span
-                        className={`method method-${r.method.toLowerCase()}`}
-                      >
-                        {r.method}
-                      </span>
-                      <span className="request-sidebar-name">
-                        {r.name || "Untitled request"}
-                      </span>
-                    </button>
-                    <button
-                      className="request-sidebar-delete"
-                      disabled={busy}
-                      title={`Delete ${r.name || "Untitled request"}`}
-                      aria-label={`Delete ${r.name || "Untitled request"}`}
-                      onClick={() => setPendingDelete(r.id)}
-                    >
-                      <Trash2 size={13} />
-                    </button>
-                  </div>
-                ))}
-            {(libraryView === "flows" || query) &&
-              w.flows
-                .filter((f) =>
-                  f.name.toLowerCase().includes(query.trim().toLowerCase()),
-                )
-                .map((f) => (
-                  <button
-                    disabled={busy}
-                    title={f.name || "Untitled flow"}
-                    aria-current={
-                      view === "flows" && flowId === f.id ? "true" : undefined
-                    }
-                    className={`sidebar-flow ${view === "flows" && flowId === f.id ? "chosen" : ""}`}
-                    key={f.id}
-                    onClick={() => {
-                      closeMobileSidebar();
-                      setFlowId(f.id);
-                      setStepId(f.steps[0]?.id);
-                      setView("flows");
-                      setLibraryView("flows");
-                      reset();
-                    }}
-                  >
-                    <Workflow size={15} />
-                    <span>{f.name || "Untitled flow"}</span>
-                    <small>{f.steps.length}</small>
-                  </button>
-                ))}
-            {!(libraryView === "requests" || query
-              ? w.requests.some((r) =>
-                  (r.name + " " + r.method + " " + r.url)
-                    .toLowerCase()
-                    .includes(query.trim().toLowerCase()),
-                )
-              : false) &&
-              !(libraryView === "flows" || query
-                ? w.flows.some((f) =>
-                    f.name.toLowerCase().includes(query.trim().toLowerCase()),
-                  )
-                : false) && (
-                <div className="sidebar-empty">
-                  <Search size={18} />
-                  <strong>
-                    {query ? "No matches found" : "A fresh start"}
-                  </strong>
-                  <p>
-                    {query
-                      ? "Try another name, URL, or method."
-                      : libraryView === "requests"
-                        ? "Save your first request here."
-                        : "Create your first flow."}
-                  </p>
-                  {query ? (
-                    <button onClick={() => setQuery("")}>Clear search</button>
-                  ) : (
-                    <button
-                      disabled={busy}
-                      onClick={() => createItem(libraryView)}
-                    >
-                      Create {libraryView === "requests" ? "request" : "flow"}
-                    </button>
-                  )}
-                </div>
-              )}
+            {(libraryView==="requests"||query)&&<RequestCollections workspace={w} query={query} busy={busy} onViewDocumentation={setDocumentationScope} onDelete={setPendingCollectionDelete} creationFolder={collectionDraftFolder} onStartCreate={setCollectionDraftFolder} onCancelCreate={()=>setCollectionDraftFolder(null)} onRename={(id,name)=>{if(busy)return;persist({...w,collections:w.collections?.map(c=>c.id===id?{...c,name}:c)});setNotice("Name updated.");}} onMove={(drag,parentId,beforeId)=>{if(!busy)persist(moveLibraryItem(w,drag,parentId,beforeId));}} onCreate={(name,parentId)=>{persist({...w,collections:[...(w.collections??[]),{id:uid(),name,...(parentId?{parentId}:{})}]});setCollectionDraftFolder(null);}} onNewRequest={id=>createItem("requests",id)} renderRequest={r=><div className={`request-sidebar-row ${view==="requests"&&reqId===r.id?"chosen":""}`} key={r.id}><button className="request-select" title={r.name||"Untitled request"} aria-current={view==="requests"&&reqId===r.id?"true":undefined} disabled={busy} onClick={()=>{closeMobileSidebar();setReqId(r.id);setView("requests");setLibraryView("requests");setResponse(null);setError("");}}><span className={`method method-${r.method.toLowerCase()}`}>{r.method}</span><span className="request-sidebar-name">{r.name||"Untitled request"}</span></button><button className="request-sidebar-delete" title={`Delete ${r.name}`} aria-label={`Delete ${r.name}`} disabled={busy} onClick={()=>setPendingDelete(r.id)}><Trash2 size={13}/></button></div>}/>}
+            {(libraryView==="flows"||query)&&w.flows.filter(f=>f.name.toLowerCase().includes(query.trim().toLowerCase())).map(f=><button className={`sidebar-flow ${view==="flows"&&flowId===f.id?"chosen":""}`} key={f.id} title={f.name} aria-current={view==="flows"&&flowId===f.id?"true":undefined} disabled={busy} onClick={()=>{closeMobileSidebar();setFlowId(f.id);setStepId(f.steps[0]?.id);setView("flows");setLibraryView("flows");reset();}}><Workflow size={15}/><span>{f.name||"Untitled flow"}</span><small>{f.steps.length}</small></button>)}
+            {!(libraryView==="requests"||query?w.requests.some(r=>(collectionPath(w.collections??[],r.collectionId??"")+" "+r.name+" "+r.method+" "+r.url).toLowerCase().includes(query.trim().toLowerCase())):false)&&!(libraryView==="flows"||query?w.flows.some(f=>f.name.toLowerCase().includes(query.trim().toLowerCase())):false)&&<div className="sidebar-empty"><Search size={18}/><strong>{query?"No matches found":"A fresh start"}</strong><p>{query?"Try another name, method or URL.":libraryView==="requests"?"Save your first request here.":"Create your first flow."}</p>{query?<button onClick={()=>setQuery("")}>Clear search</button>:<button disabled={busy} onClick={()=>createItem(libraryView)}>Create {libraryView==="requests"?"request":"flow"}</button>}</div>}
           </div>
         </section>
-        <div className="sidebar-bottom">
-          <div className="transfer">
-            <button
-              title="Import workspace"
-              aria-label="Import workspace"
-              disabled={busy}
-              onClick={() => file.current?.click()}
-            >
-              <Upload size={13} />
-              <span>Import</span>
-            </button>
-            <button
-              title="Export workspace"
-              aria-label="Export workspace"
-              onClick={exportData}
-            >
-              <Download size={13} />
-              <span>Export</span>
-            </button>
-          </div>
-          <input
-            ref={file}
-            type="file"
-            accept=".json"
-            hidden
-            onChange={(e) => {
-              const f = e.target.files?.[0];
-              if (f) void importData(f);
-              e.target.value = "";
-            }}
-          />
-        </div>
-        <div className="sidebar-update-footer">
-          <ThemeControl />
-          <button
-            className={`sidebar-update-button ${updatesOpen ? "active" : ""}`}
-            aria-label="Updates"
-            aria-haspopup="dialog"
-            title={`Updates${appVersion ? ` · v${appVersion}` : ""}${updateInfo?.state === "available" ? ` · New version ${updateInfo.latestVersion}` : ""}`}
-            disabled={busy}
-            onClick={() => {
-              setUpdatesOpen(true);
-              setError("");
-            }}
-          >
-            <RefreshCw size={16} />
-            <span className="update-footer-label">Updates</span>
-            <span className="update-footer-version">
-              {appVersion ? `v${appVersion}` : "…"}
-            </span>
-            {updateInfo?.state === "available" && (
-              <span
-                className="update-nav-badge"
-                aria-label={`Version ${updateInfo.latestVersion} available`}
-              >
-                New
-              </span>
-            )}
-          </button>
-        </div>
+        <div className="sidebar-utilities" role="group" aria-label="Workspace utilities"><IconTooltip text="Import workspace"><button aria-label="Import workspace" disabled={busy} onClick={()=>file.current?.click()}><Upload size={19}/></button></IconTooltip><IconTooltip text="Export workspace"><button aria-label="Export workspace" onClick={exportData}><Download size={19}/></button></IconTooltip><ThemeControl/><IconTooltip text={`Updates${appVersion?` · v${appVersion}`:""}${updateInfo?.state==="available"?` · New version ${updateInfo.latestVersion}`:""}`}><button className={updatesOpen?"active":""} aria-label="Updates" aria-haspopup="dialog" disabled={busy} onClick={()=>{setUpdatesOpen(true);setError("");}}><RefreshCw size={19}/>{updateInfo?.state==="available"&&<span className="utility-update-dot" aria-label={`Version ${updateInfo.latestVersion} available`}/>}</button></IconTooltip><input ref={file} type="file" accept=".json" hidden onChange={e=>{const f=e.target.files?.[0];if(f)void importData(f);e.target.value="";}}/></div>
       </aside>
-      {!sidebarCollapsed && (
-        <button
-          className="sidebar-backdrop"
-          aria-label="Close sidebar"
-          onClick={() => setSidebarCollapsed(true)}
-        />
-      )}
+      {!sidebarCollapsed&&<button className="sidebar-backdrop" aria-label="Close sidebar" onClick={()=>setSidebarCollapsed(true)}/>}
       <main>
-        <header>
-          <div className="breadcrumb">
-            Workspace <ChevronRight size={13} />
-            <span>
-              {view === "requests"
-                ? "Collections"
-                : view[0].toUpperCase() + view.slice(1)}
-            </span>
-          </div>
-          <div className="header-right">
-            <span className="local-dot" />
-            Saved locally
-            <Dropdown
-              label="Active environment"
-              variant="environment"
-              disabled={busy}
-              value={w.environment}
-              onChange={(environment) => {
-                persist({ ...w, environment });
-                reset();
-              }}
-              options={Object.keys(w.environments).map((env) => ({
-                value: env,
-                label: env,
-                description:
-                  env === "Local"
-                    ? "APIs on your machine"
-                    : env === "Development"
-                      ? "Development & testing"
-                      : env === "Production"
-                        ? "Live environment"
-                        : "Workspace environment",
-              }))}
-            />
-          </div>
-        </header>
+        <header><div className="breadcrumb"><button className="sidebar-toggle" aria-label={sidebarCollapsed?"Expand sidebar":"Collapse sidebar"} title={sidebarCollapsed?"Expand sidebar":"Collapse sidebar"} aria-expanded={!sidebarCollapsed} aria-controls="workspace-sidebar" onClick={()=>{setSidebarCollapsed(!sidebarCollapsed);try{localStorage.setItem("u-sidebar-collapsed",String(!sidebarCollapsed));}catch{}}}><svg width={20} height={20} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 3H5a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h4Z" fill="currentColor"/><rect x={2} y={3} width={20} height={18} rx={3} stroke="currentColor" strokeWidth={1.5}/><path d="M9 3v18" stroke="currentColor" strokeWidth={1.5}/><path d="M4.5 8h2M4.5 12h2M4.5 16h2" stroke="var(--sidebar-toggle-cutout)" strokeWidth={1.5} strokeLinecap="round"/></svg></button>Workspace <ChevronRight size={13}/><span>{view==="requests"?"Collections":view[0].toUpperCase()+view.slice(1)}</span></div><div className="header-right"><span className="local-dot"/> Saved locally<Dropdown label="Active environment" variant="environment" disabled={busy} value={w.environment} onChange={environment=>{persist({...w,environment});reset();}} options={Object.keys(w.environments).map(value=>({value,label:value,description:value==="Local"?"APIs on your machine":value==="Development"?"Development & testing":value==="Production"?"Live environment":"Workspace environment"}))}/><IconTooltip text="Request history"><button className={`header-history-button ${view==="history"?"active":""}`} aria-label="Request history" aria-current={view==="history"?"page":undefined} disabled={busy} onClick={()=>{setView("history");setError("");}}><Clock size={17}/></button></IconTooltip></div></header>
+        <div className={`workspace-content ${view==="requests"?"is-request-workspace":""}`} tabIndex={0} aria-label="Workspace content">
         {(view === "flows" || view === "requests") && (
           <div className="compact-switcher">
             <Dropdown
@@ -1655,75 +1354,14 @@ export default function App() {
             </div>
           </>
         )}
-        {view === "requests" && (
-          <>
-            <div className="page-title">
-              <div>
-                <div className="eyebrow">
-                  <Send size={13} /> API CLIENT
-                </div>
-                <h1>API collections</h1>
-                <p>Your endpoints, all in one place.</p>
-              </div>
-            </div>
-            {spec ? (
-              <div className="request-page">
-                <div className="request-heading">
-                  <input
-                    className="title-input"
-                    aria-label="Request name"
-                    disabled={busy}
-                    value={spec.name}
-                    onChange={(e) => patchRequest({ name: e.target.value })}
-                  />
-                </div>
-                {editor()}
-                {busy && (
-                  <button onClick={() => abort.current?.abort()}>
-                    Stop request
-                  </button>
-                )}
-                <div className="output-title">
-                  RESPONSE{" "}
-                  {response && (
-                    <span className={response.status < 400 ? "green" : ""}>
-                      {response.status} {response.statusText} ·{" "}
-                      {response.duration} ms · {response.size} bytes
-                    </span>
-                  )}
-                </div>
-                {response ? (
-                  <>
-                    <details>
-                      <summary>Response headers</summary>
-                      <pre>{JSON.stringify(response.headers, null, 2)}</pre>
-                    </details>
-                    <pre>
-                      {typeof response.body === "string"
-                        ? response.body
-                        : JSON.stringify(response.body, null, 2)}
-                    </pre>
-                  </>
-                ) : (
-                  <div className="empty">
-                    <Send size={28} />
-                    <p>Send a request to inspect its response.</p>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <div className="empty request-empty">
-                <Send size={30} />
-                <h3>No saved requests</h3>
-                <p>Create a request to start testing an API.</p>
-                <button className="primary" onClick={() => createItem()}>
-                  <Plus size={14} />
-                  New request
-                </button>
-              </div>
-            )}
-          </>
-        )}
+            {view === "requests" && (spec ? <RequestWorkbench key={spec.id} spec={spec} workspace={w} busy={busy}
+          response={responseOwner === spec.id ? response : null} saved={responseSaved} onPatch={patchRequest}
+          onSend={sendRequest} onStop={() => abort.current?.abort()} onSave={() => {
+            if (!response || responseOwner !== spec.id || responseSaved) return;
+            patchRequest({responseExamples:[...(spec.responseExamples ?? []), captureResponse(response,uid())]});
+            setResponseSaved(true);setNotice("Response example saved.");
+          }}
+        /> : <div className="empty request-empty"><Send size={30}/><h3>No saved requests</h3><button className="primary" onClick={() => createItem("requests")}><Plus size={14}/> New request</button></div>)}
         {view === "environments" && (
           <>
             <div className="page-title">
@@ -1803,6 +1441,7 @@ export default function App() {
             </div>
           </>
         )}
+        </div>
         {updatesOpen && (
           <Updates
             onClose={() => setUpdatesOpen(false)}
