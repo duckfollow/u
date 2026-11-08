@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.2.1 — 2026-11-08
+
+- Fix Flow canvas and Step details clipping by constraining grid rows and giving each panel independent scrolling.
+- Add background panning, a reset-view action, and pointer/keyboard step reordering within each execution sequence.
+
+- Combine Import, Export, Theme and Updates into one Workspace tools popover when the sidebar is collapsed.
+
 ## 0.2.0 — 2026-11-08
 
 - Add nested collections/folders with rename, drag-and-drop moves/reordering, and shared ellipsis/right-click management menus.

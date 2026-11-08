@@ -1,3 +1,6 @@
+import CollapsedUtilities from "./CollapsedUtilities";
+import FlowViewport from "./FlowViewport";
+import { reorderFlowSteps } from "./flow-layout";
 import RequestWorkbench from "./RequestWorkbench";
 import { organizeCollectionTree, collectionPath, moveLibraryItem, descendants } from "./collection-tree";
 import LibraryCreateMenu from "./LibraryCreateMenu";
@@ -38,6 +41,7 @@ import {
   Braces,
   Timer,
   GitBranch,
+  GripVertical,
   Search,
   Radio,
   Repeat2,
@@ -126,6 +130,8 @@ export default function App() {
     [documentationScope, setDocumentationScope] = useState<DocumentationScope | null>(null),
     [showAuthExamples, setShowAuthExamples] = useState(false),
     [view, setView] = useState("flows"),
+    [draggedStep, setDraggedStep] = useState<string | null>(null),
+    [stepDrop, setStepDrop] = useState<{id:string;after:boolean}|null>(null),
     [flowId, setFlowId] = useState(w.flows[0]?.id),
     [reqId, setReqId] = useState(w.requests[0]?.id),
     [stepId, setStepId] = useState<string | undefined>(
@@ -422,6 +428,30 @@ export default function App() {
               : Braces;
     return (
       <React.Fragment key={s.id}>
+        <div data-flow-step-id={s.id} className={`flow-step-shell ${draggedStep===s.id?"is-dragged":""} ${stepDrop?.id===s.id?(stepDrop.after?"drop-after":"drop-before"):""}`} onDragOver={event=>{
+          if(!draggedStep||busy||draggedStep===s.id)return;
+          event.preventDefault();event.stopPropagation();const rect=event.currentTarget.getBoundingClientRect();setStepDrop({id:s.id,after:event.clientY>rect.top+rect.height/2});
+        }} onDrop={event=>{
+          if(!draggedStep||busy||!flow)return;
+          event.preventDefault();event.stopPropagation();const next=reorderFlowSteps(flow,draggedStep,s.id,stepDrop?.id===s.id?stepDrop.after:false);if(next!==flow)updateFlow(next.steps);setDraggedStep(null);setStepDrop(null);
+        }}>
+        <span className="flow-step-grip" draggable={false} role="button" tabIndex={0} aria-label={`Drag step ${s.name} to reorder`} title="Drag to reorder within this sequence" onPointerDown={event=>{
+          if(busy||event.button!==0)return;event.preventDefault();event.stopPropagation();event.currentTarget.setPointerCapture(event.pointerId);setDraggedStep(s.id);
+        }} onPointerMove={event=>{
+          if(!event.currentTarget.hasPointerCapture(event.pointerId))return;
+          const target=document.elementFromPoint(event.clientX,event.clientY)?.closest<HTMLElement>('[data-flow-step-id]');
+          if(!target||target.dataset.flowStepId===s.id){setStepDrop(null);return;}
+          const rect=target.getBoundingClientRect();setStepDrop({id:target.dataset.flowStepId!,after:event.clientY>rect.top+rect.height/2});
+          const viewport=target.closest('.flow-pan-viewport');if(viewport){const area=viewport.getBoundingClientRect();if(event.clientY>area.bottom-28)viewport.scrollTop+=12;else if(event.clientY<area.top+28)viewport.scrollTop-=12;}
+        }} onPointerUp={event=>{
+          if(!event.currentTarget.hasPointerCapture(event.pointerId))return;
+          const target=document.elementFromPoint(event.clientX,event.clientY)?.closest<HTMLElement>('[data-flow-step-id]');
+          if(target&&flow){const rect=target.getBoundingClientRect();const next=reorderFlowSteps(flow,s.id,target.dataset.flowStepId!,event.clientY>rect.top+rect.height/2);if(next!==flow)updateFlow(next.steps);}
+          event.currentTarget.releasePointerCapture(event.pointerId);setDraggedStep(null);setStepDrop(null);
+        }} onLostPointerCapture={()=>{setDraggedStep(null);setStepDrop(null);}} onKeyDown={event=>{
+          if(!event.altKey||!flow||busy||!["ArrowUp","ArrowDown"].includes(event.key))return;
+          event.preventDefault();const list=child?flow.steps.find(p=>p.children?.some(c=>c.id===s.id))?.children??[]:flow.steps;const target=list[index+(event.key==="ArrowUp"?-1:1)];if(target){const next=reorderFlowSteps(flow,s.id,target.id,event.key==="ArrowDown");if(next!==flow)updateFlow(next.steps);}
+        }}><GripVertical size={15}/></span>
         <button
           disabled={busy}
           aria-label={`Configure ${child ? "loop child" : "step"} ${index + 1}: ${s.name}`}
@@ -461,6 +491,7 @@ export default function App() {
             <ChevronRight size={15} />
           )}
         </button>
+        </div>
         {s.kind === "loop" && (
           <div className="loop-group">
             <div className="loop-group-heading">
@@ -685,12 +716,13 @@ export default function App() {
             {!(libraryView==="requests"||query?w.requests.some(r=>(collectionPath(w.collections??[],r.collectionId??"")+" "+r.name+" "+r.method+" "+r.url).toLowerCase().includes(query.trim().toLowerCase())):false)&&!(libraryView==="flows"||query?w.flows.some(f=>f.name.toLowerCase().includes(query.trim().toLowerCase())):false)&&<div className="sidebar-empty"><Search size={18}/><strong>{query?"No matches found":"A fresh start"}</strong><p>{query?"Try another name, method or URL.":libraryView==="requests"?"Save your first request here.":"Create your first flow."}</p>{query?<button onClick={()=>setQuery("")}>Clear search</button>:<button disabled={busy} onClick={()=>createItem(libraryView)}>Create {libraryView==="requests"?"request":"flow"}</button>}</div>}
           </div>
         </section>
+        {sidebarCollapsed&&<CollapsedUtilities busy={busy} version={appVersion} updateAvailable={updateInfo?.state==="available"} onImport={()=>file.current?.click()} onExport={exportData} onUpdates={()=>{setUpdatesOpen(true);setError("");}}/>}
         <div className="sidebar-utilities" role="group" aria-label="Workspace utilities"><IconTooltip text="Import workspace"><button aria-label="Import workspace" disabled={busy} onClick={()=>file.current?.click()}><Upload size={19}/></button></IconTooltip><IconTooltip text="Export workspace"><button aria-label="Export workspace" onClick={exportData}><Download size={19}/></button></IconTooltip><ThemeControl/><IconTooltip text={`Updates${appVersion?` · v${appVersion}`:""}${updateInfo?.state==="available"?` · New version ${updateInfo.latestVersion}`:""}`}><button className={updatesOpen?"active":""} aria-label="Updates" aria-haspopup="dialog" disabled={busy} onClick={()=>{setUpdatesOpen(true);setError("");}}><RefreshCw size={19}/>{updateInfo?.state==="available"&&<span className="utility-update-dot" aria-label={`Version ${updateInfo.latestVersion} available`}/>}</button></IconTooltip><input ref={file} type="file" accept=".json" hidden onChange={e=>{const f=e.target.files?.[0];if(f)void importData(f);e.target.value="";}}/></div>
       </aside>
       {!sidebarCollapsed&&<button className="sidebar-backdrop" aria-label="Close sidebar" onClick={()=>setSidebarCollapsed(true)}/>}
       <main>
         <header><div className="breadcrumb"><button className="sidebar-toggle" aria-label={sidebarCollapsed?"Expand sidebar":"Collapse sidebar"} title={sidebarCollapsed?"Expand sidebar":"Collapse sidebar"} aria-expanded={!sidebarCollapsed} aria-controls="workspace-sidebar" onClick={()=>{setSidebarCollapsed(!sidebarCollapsed);try{localStorage.setItem("u-sidebar-collapsed",String(!sidebarCollapsed));}catch{}}}><svg width={20} height={20} viewBox="0 0 24 24" fill="none" aria-hidden="true"><path d="M9 3H5a3 3 0 0 0-3 3v12a3 3 0 0 0 3 3h4Z" fill="currentColor"/><rect x={2} y={3} width={20} height={18} rx={3} stroke="currentColor" strokeWidth={1.5}/><path d="M9 3v18" stroke="currentColor" strokeWidth={1.5}/><path d="M4.5 8h2M4.5 12h2M4.5 16h2" stroke="var(--sidebar-toggle-cutout)" strokeWidth={1.5} strokeLinecap="round"/></svg></button>Workspace <ChevronRight size={13}/><span>{view==="requests"?"Collections":view[0].toUpperCase()+view.slice(1)}</span></div><div className="header-right"><span className="local-dot"/> Saved locally<Dropdown label="Active environment" variant="environment" disabled={busy} value={w.environment} onChange={environment=>{persist({...w,environment});reset();}} options={Object.keys(w.environments).map(value=>({value,label:value,description:value==="Local"?"APIs on your machine":value==="Development"?"Development & testing":value==="Production"?"Live environment":"Workspace environment"}))}/><IconTooltip text="Request history"><button className={`header-history-button ${view==="history"?"active":""}`} aria-label="Request history" aria-current={view==="history"?"page":undefined} disabled={busy} onClick={()=>{setView("history");setError("");}}><Clock size={17}/></button></IconTooltip></div></header>
-        <div className={`workspace-content ${view==="requests"?"is-request-workspace":""}`} tabIndex={0} aria-label="Workspace content">
+        <div className={`workspace-content ${view==="requests"?"is-request-workspace":view==="flows"?"is-flow-workspace":""}`} tabIndex={0} aria-label="Workspace content">
         {(view === "flows" || view === "requests") && (
           <div className="compact-switcher">
             <Dropdown
@@ -841,6 +873,7 @@ export default function App() {
                   <span className="canvas-caption">WORKFLOW OVERVIEW</span>
                   <span>Execute from top to bottom</span>
                 </div>
+                <FlowViewport key={flow.id}>
                 <div className="step-list">
                   <div className="trigger">
                     <Radio size={14} />
@@ -880,6 +913,7 @@ export default function App() {
                     ))}
                   </div>
                 </div>
+                </FlowViewport>
                 <div className="canvas-footer">
                   <span className="local-dot" />{" "}
                   {busy

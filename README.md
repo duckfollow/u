@@ -186,3 +186,11 @@ Headers support **Table** and **Raw JSON** views. Toggle individual table rows o
 Use the request editor's **Params** tab to add, edit, remove or disable query parameters. Enabled rows update the URL immediately; direct URL edits update the table. Repeated keys and `{{variables}}` are supported, and URL fragments are preserved. Disabled parameters remain in the saved request and workspace exports without being sent.
 
 Body JSON supports syntax colors and **Format JSON**, which adjusts whitespace while preserving numeric literals and duplicate keys. Invalid JSON remains unchanged and shows an error. Success appears briefly on the format button. Response status uses a colored badge, with time and size displayed separately. Workspace navigation and connection status stay fixed while editor panels scroll.
+
+### Flow canvas navigation
+
+Overview and Step details stay within the workspace, with independent scrolling so long flows and inspectors remain reachable. Drag blank canvas space to pan, or use its scrollbars. **Reset canvas view** returns to the start. Text on step cards is not selected while dragging.
+
+Drag the grip beside a step above/below another step to change execution order. Loop children reorder within their own loop; steps do not move across loop boundaries. The selected step and all request configuration are preserved, and previous execution results reset after reordering. Focus a grip and use **Alt + Up/Down** for the same operation with a keyboard. Existing inspector Move up/down controls remain available.
+
+When the sidebar is collapsed, its footer uses one **⋯ Workspace tools** control for Import, Export, Light/Dark/System appearance and Updates. An update indicator remains visible on the control. Expanded sidebars keep the four individual utility icons.
