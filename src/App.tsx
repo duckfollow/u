@@ -1,4 +1,3 @@
-import CollapsedUtilities from "./CollapsedUtilities";
 import FlowViewport from "./FlowViewport";
 import { reorderFlowSteps } from "./flow-layout";
 import RequestWorkbench from "./RequestWorkbench";
@@ -33,8 +32,6 @@ import {
   Send,
   Clock,
   Settings2,
-  Download,
-  Upload,
   Trash2,
   ArrowUp,
   Check,
@@ -42,6 +39,7 @@ import {
   Timer,
   GitBranch,
   GripVertical,
+  Shapes,
   Search,
   Radio,
   Repeat2,
@@ -708,7 +706,7 @@ export default function App() {
           <SidebarNavButton label="Search" active={searchOpen} collapsed={sidebarCollapsed} disabled={busy} expanded={searchOpen&&!sidebarCollapsed} controls="sidebar-search" buttonRef={searchButton} onClick={()=>{if(searchOpen&&!sidebarCollapsed){closeSearch();return;}setSidebarCollapsed(false);try{localStorage.setItem("u-sidebar-collapsed","false");}catch{}setSearchOpen(true);}}><Search size={19} aria-hidden="true"/></SidebarNavButton>
         </nav>
         <section className="sidebar-library" aria-label="Workspace library" onKeyDown={e=>{if(e.key==="Escape"&&searchOpen){e.preventDefault();closeSearch();}}}>
-          <div className="section-heading"><span>{query?"SEARCH RESULTS":libraryView==="requests"?"COLLECTIONS":"YOUR FLOWS"}</span>{libraryView==="requests"?<LibraryCreateMenu disabled={busy} onCollection={()=>setCollectionDraftFolder("")} onRequest={()=>createItem("requests")}/>:<button title="New flow" aria-label="New flow" disabled={busy} onClick={()=>createItem("flows")}><Plus size={15}/></button>}</div>
+          <div className="section-heading"><span className="library-heading-label">{!query && libraryView === "requests" && <Shapes size={13} aria-hidden="true" />}{query?"SEARCH RESULTS":libraryView==="requests"?"COLLECTIONS":"YOUR FLOWS"}</span>{libraryView==="requests"?<LibraryCreateMenu disabled={busy} onCollection={()=>setCollectionDraftFolder("")} onRequest={()=>createItem("requests")} onImport={()=>file.current?.click()} onExport={exportData}/>:<button title="New flow" aria-label="New flow" disabled={busy} onClick={()=>createItem("flows")}><Plus size={15}/></button>}</div>
           {searchOpen&&<div className="search" id="sidebar-search"><Search size={14}/><input ref={searchInput} aria-label="Search requests and flows" placeholder="Search requests & flows…" value={query} onChange={e=>setQuery(e.target.value)}/><button aria-label="Close sidebar search" onClick={closeSearch}><X size={12}/></button></div>}
           <div className="items">
             {(libraryView==="requests"||query)&&<RequestCollections workspace={w} query={query} busy={busy} onViewDocumentation={setDocumentationScope} onDelete={setPendingCollectionDelete} creationFolder={collectionDraftFolder} onStartCreate={setCollectionDraftFolder} onCancelCreate={()=>setCollectionDraftFolder(null)} onRename={(id,name)=>{if(busy)return;persist({...w,collections:w.collections?.map(c=>c.id===id?{...c,name}:c)});setNotice("Name updated.");}} onMove={(drag,parentId,beforeId)=>{if(!busy)persist(moveLibraryItem(w,drag,parentId,beforeId));}} onCreate={(name,parentId)=>{persist({...w,collections:[...(w.collections??[]),{id:uid(),name,...(parentId?{parentId}:{})}]});setCollectionDraftFolder(null);}} onNewRequest={id=>createItem("requests",id)} renderRequest={r=><div className={`request-sidebar-row ${view==="requests"&&reqId===r.id?"chosen":""}`} key={r.id}><button className="request-select" title={r.name||"Untitled request"} aria-current={view==="requests"&&reqId===r.id?"true":undefined} disabled={busy} onClick={()=>{closeMobileSidebar();setReqId(r.id);setView("requests");setLibraryView("requests");setResponse(null);setError("");}}><span className={`method method-${r.method.toLowerCase()}`}>{r.method}</span><span className="request-sidebar-name">{r.name||"Untitled request"}</span></button><button className="request-sidebar-delete" title={`Delete ${r.name}`} aria-label={`Delete ${r.name}`} disabled={busy} onClick={()=>setPendingDelete(r.id)}><Trash2 size={13}/></button></div>}/>}
@@ -716,8 +714,7 @@ export default function App() {
             {!(libraryView==="requests"||query?w.requests.some(r=>(collectionPath(w.collections??[],r.collectionId??"")+" "+r.name+" "+r.method+" "+r.url).toLowerCase().includes(query.trim().toLowerCase())):false)&&!(libraryView==="flows"||query?w.flows.some(f=>f.name.toLowerCase().includes(query.trim().toLowerCase())):false)&&<div className="sidebar-empty"><Search size={18}/><strong>{query?"No matches found":"A fresh start"}</strong><p>{query?"Try another name, method or URL.":libraryView==="requests"?"Save your first request here.":"Create your first flow."}</p>{query?<button onClick={()=>setQuery("")}>Clear search</button>:<button disabled={busy} onClick={()=>createItem(libraryView)}>Create {libraryView==="requests"?"request":"flow"}</button>}</div>}
           </div>
         </section>
-        {sidebarCollapsed&&<CollapsedUtilities busy={busy} version={appVersion} updateAvailable={updateInfo?.state==="available"} onImport={()=>file.current?.click()} onExport={exportData} onUpdates={()=>{setUpdatesOpen(true);setError("");}}/>}
-        <div className="sidebar-utilities" role="group" aria-label="Workspace utilities"><IconTooltip text="Import workspace"><button aria-label="Import workspace" disabled={busy} onClick={()=>file.current?.click()}><Upload size={19}/></button></IconTooltip><IconTooltip text="Export workspace"><button aria-label="Export workspace" onClick={exportData}><Download size={19}/></button></IconTooltip><ThemeControl/><IconTooltip text={`Updates${appVersion?` · v${appVersion}`:""}${updateInfo?.state==="available"?` · New version ${updateInfo.latestVersion}`:""}`}><button className={updatesOpen?"active":""} aria-label="Updates" aria-haspopup="dialog" disabled={busy} onClick={()=>{setUpdatesOpen(true);setError("");}}><RefreshCw size={19}/>{updateInfo?.state==="available"&&<span className="utility-update-dot" aria-label={`Version ${updateInfo.latestVersion} available`}/>}</button></IconTooltip><input ref={file} type="file" accept=".json" hidden onChange={e=>{const f=e.target.files?.[0];if(f)void importData(f);e.target.value="";}}/></div>
+        <div className="sidebar-utilities" role="group" aria-label="Workspace utilities"><ThemeControl/><IconTooltip text={`Updates${appVersion?` · v${appVersion}`:""}${updateInfo?.state==="available"?` · New version ${updateInfo.latestVersion}`:""}`}><button className={updatesOpen?"active":""} aria-label="Updates" aria-haspopup="dialog" disabled={busy} onClick={()=>{setUpdatesOpen(true);setError("");}}><RefreshCw size={19}/><span className="utility-update-label">Updates</span><span className="utility-update-status">{updateInfo?.state==="available"?"New":appVersion? `v${appVersion}`:null}</span>{updateInfo?.state==="available"&&<span className="utility-update-dot" aria-label={`Version ${updateInfo.latestVersion} available`}/>}</button></IconTooltip><input ref={file} type="file" accept=".json" hidden onChange={e=>{const f=e.target.files?.[0];if(f)void importData(f);e.target.value="";}}/></div>
       </aside>
       {!sidebarCollapsed&&<button className="sidebar-backdrop" aria-label="Close sidebar" onClick={()=>setSidebarCollapsed(true)}/>}
       <main>

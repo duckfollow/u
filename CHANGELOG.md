@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.2.2 — 2026-11-09
+
+- Move workspace import and export into the Collections actions menu.
+- Keep Theme and Updates directly accessible in both sidebar layouts.
+- Align Collections actions and add a Shapes icon and full-width divider.
+
 ## 0.2.1 — 2026-11-08
 
 - Fix Flow canvas and Step details clipping by constraining grid rows and giving each panel independent scrolling.

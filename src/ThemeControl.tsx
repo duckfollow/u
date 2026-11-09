@@ -16,6 +16,7 @@ export default function ThemeControl() {
   return (
     <IconTooltip text={`Theme · ${value[0].toUpperCase() + value.slice(1)}`}>
     <div className="theme-control">
+      <span className="utility-theme-label">Theme</span>
       <Dropdown
         label="Theme"
         variant="theme"

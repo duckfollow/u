@@ -193,4 +193,4 @@ Overview and Step details stay within the workspace, with independent scrolling 
 
 Drag the grip beside a step above/below another step to change execution order. Loop children reorder within their own loop; steps do not move across loop boundaries. The selected step and all request configuration are preserved, and previous execution results reset after reordering. Focus a grip and use **Alt + Up/Down** for the same operation with a keyboard. Existing inspector Move up/down controls remain available.
 
-When the sidebar is collapsed, its footer uses one **⋯ Workspace tools** control for Import, Export, Light/Dark/System appearance and Updates. An update indicator remains visible on the control. Expanded sidebars keep the four individual utility icons.
+Import and export the workspace from the Collections heading menu. Theme and Updates are available in the sidebar footer.
